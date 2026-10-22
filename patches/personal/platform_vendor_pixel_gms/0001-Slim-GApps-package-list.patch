@@ -1,0 +1,24 @@
+diff --git a/common/common-vendor.mk b/common/common-vendor.mk
+index 37ba39a..52ea35e 100644
+--- a/common/common-vendor.mk
++++ b/common/common-vendor.mk
+@@ -121,11 +121,7 @@ PRODUCT_PACKAGES += \
+     GoogleExtShared \
+     GooglePrintRecommendationService \
+     GoogleExtServices \
+-    CalculatorGooglePrebuilt_85006267 \
+-    CalendarGooglePrebuilt \
+-    Chrome-Stub \
+     DevicePolicyPrebuilt-v10334460 \
+-    GoogleTTS \
+     LatinIMEGooglePrebuilt \
+     LocationHistoryPrebuilt \
+     MarkupGoogle_v2 \
+@@ -162,7 +158,6 @@ PRODUCT_PACKAGES += \
+     SetupWizardPrebuilt_v811313066 \
+     TurboPrebuilt \
+     Velvet \
+-    WellbeingPrebuilt \
+     EmergencyInfoGoogleNoUi \
+     Flipendo \
+     GoogleServicesFramework \
