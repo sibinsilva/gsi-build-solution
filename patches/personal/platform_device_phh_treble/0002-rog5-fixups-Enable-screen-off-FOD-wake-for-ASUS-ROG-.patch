@@ -1,0 +1,38 @@
+From 666cfd348fc288c08d2aa2d8c1c5e8c82aa9fdea Mon Sep 17 00:00:00 2001
+From: Sibin Silvester <sibinsilva@gmail.com>
+Date: Fri, 23 Oct 2026 20:59:40 +0000
+Subject: [PATCH] rog5-fixups: Enable screen-off FOD wake for ASUS ROG Phone 5
+
+Set persist.vendor.asus.fp.wakeup (fts_fp_mode) after boot and mirror
+sys.phh.oplus.fppress.fodctrl, set by SystemUI on screen off, into
+vendor.asus.touch_control_fod (fts_fp_ctrl_mode), so a finger on the FOD
+area wakes the device and starts the UDFPS scan.
+
+Change-Id: Ied5a681ac6cc233aa3b7857105ef0dbc47b8fa5b
+---
+ rog5-fixups.rc | 12 ++++++++++++
+ 1 file changed, 12 insertions(+)
+
+diff --git a/rog5-fixups.rc b/rog5-fixups.rc
+index 1ffd0c0..f24d59b 100644
+--- a/rog5-fixups.rc
++++ b/rog5-fixups.rc
+@@ -26,3 +26,15 @@ on property:sys.boot_completed=1
+     chown system system /sys/devices/platform/soc/990000.i2c/i2c-2/2-0038/fts_game_mode
+     chmod 0664 /sys/devices/platform/soc/990000.i2c/i2c-2/2-0038/fts_game_mode
+     restorecon /sys/devices/platform/soc/990000.i2c/i2c-2/2-0038/fts_game_mode
++
++# Screen-off / AOD fingerprint unlock. ASUS's vendor init.asus.rc writes these
++# vendor properties to the touch driver: fp.wakeup -> fts_fp_mode (fp_enable),
++# touch_control_fod -> fts_fp_ctrl_mode (fp_report_type). With both set, a
++# finger on the FOD area while the screen is off makes the driver send KEY_F
++# (mapped to WAKEUP in fts_ts.kl). Stock ASUS SystemUI drives them; here our
++# SystemUI (UdfpsController) arms it on screen off via sys.phh.oplus.fppress.fodctrl.
++on property:sys.boot_completed=1
++    setprop persist.vendor.asus.fp.wakeup true
++
++on property:sys.phh.oplus.fppress.fodctrl=*
++    setprop vendor.asus.touch_control_fod ${sys.phh.oplus.fppress.fodctrl}
+-- 
+2.53.0
+

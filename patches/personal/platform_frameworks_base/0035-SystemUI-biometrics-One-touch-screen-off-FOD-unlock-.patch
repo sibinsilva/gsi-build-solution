@@ -1,0 +1,81 @@
+From 3652fbc19d4d3a9e9451fd755d1edec87c1850f0 Mon Sep 17 00:00:00 2001
+From: Sibin Silvester <sibinsilva@gmail.com>
+Date: Fri, 23 Oct 2026 20:59:40 +0000
+Subject: [PATCH] SystemUI: biometrics: One-touch screen-off FOD unlock for
+ Asus
+
+On the ROG Phone 5, while vendor.asus.touch_control_fod is set the touch
+driver reports a finger on the FOD area as KEY_F (mapped to WAKEUP)
+instead of a touch, and keeps filtering that finger until it lifts, so the
+normal touch path can never start a scan from screen off.
+
+When persist.sys.phh.fod.asus is set: arm touch_control_fod (through
+sys.phh.oplus.fppress.fodctrl) when going to sleep with UDFPS enrolled.
+On a WAKE_KEY wake with the keyguard showing, start the scan through
+onAodInterrupt at the sensor center (the AOD long-press sensor path) and
+disarm after the AOD finger-up timeout. Any other wake disarms right away
+so on-screen touches over the sensor work normally.
+---
+ .../systemui/biometrics/UdfpsController.java  | 39 +++++++++++++++++++
+ 1 file changed, 39 insertions(+)
+
+diff --git a/packages/SystemUI/src/com/android/systemui/biometrics/UdfpsController.java b/packages/SystemUI/src/com/android/systemui/biometrics/UdfpsController.java
+index 55eb2dfa2..a904dc941 100644
+--- a/packages/SystemUI/src/com/android/systemui/biometrics/UdfpsController.java
++++ b/packages/SystemUI/src/com/android/systemui/biometrics/UdfpsController.java
+@@ -300,6 +300,22 @@ public class UdfpsController implements DozeReceiver, Dumpable, Runnable {
+         }
+     };
+ 
++    // ASUS (ROG Phone 5) screen-off FOD unlock. With touch_control_fod set, the
++    // touch driver reports a finger on the sensor while the screen is off as
++    // KEY_F (mapped to WAKEUP) instead of a touch, and keeps that finger
++    // filtered until it lifts, so start the scan through the AOD interrupt
++    // path, like a long-press sensor would.
++    private static final String ASUS_FOD_CTRL_PROPERTY = "sys.phh.oplus.fppress.fodctrl";
++    private static final long ASUS_FOD_CTRL_RELEASE_DELAY_MILLIS =
++            AOD_SEND_FINGER_UP_DELAY_MILLIS + 500;
++    private final boolean mAsusFod = SystemProperties.getBoolean("persist.sys.phh.fod.asus", false);
++    private boolean mAsusFodArmed;
++
++    private void setAsusFodArmed(boolean armed) {
++        mAsusFodArmed = armed;
++        SystemProperties.set(ASUS_FOD_CTRL_PROPERTY, armed ? "1" : "0");
++    }
++
+     private final WakefulnessLifecycle mWakefulnessLifecycle;
+     private final WakefulnessLifecycle.Observer mWakefulnessLifecycleObserver =
+             new WakefulnessLifecycle.Observer() {
+@@ -309,6 +325,29 @@ public class UdfpsController implements DozeReceiver, Dumpable, Runnable {
+                             ACTION_UDFPS_OVERLAY_ATTACHED_AFTER_GOING_TO_SLEEP);
+                     mLatencyTracker.onActionStart(
+                             ACTION_UDFPS_OVERLAY_ATTACHED_AFTER_GOING_TO_SLEEP);
++                    if (mAsusFod && mKeyguardUpdateMonitor.isUdfpsEnrolled()) {
++                        setAsusFodArmed(true);
++                    }
++                }
++
++                @Override
++                public void onStartedWakingUp() {
++                    if (!mAsusFod || !mAsusFodArmed) {
++                        return;
++                    }
++                    final boolean fodWake = mWakefulnessLifecycle.getLastWakeReason()
++                            == PowerManager.WAKE_REASON_WAKE_KEY;
++                    final Rect sensor = mOverlayParams.getSensorBounds();
++                    if (!fodWake || !mKeyguardStateController.isShowing()
++                            || sensor.isEmpty()) {
++                        // Any other wake must get normal touches over the sensor back.
++                        setAsusFodArmed(false);
++                        return;
++                    }
++                    final float radius = sensor.width() / 2f;
++                    onAodInterrupt(sensor.centerX(), sensor.centerY(), radius, radius);
++                    mFgExecutor.executeDelayed(() -> setAsusFodArmed(false),
++                            ASUS_FOD_CTRL_RELEASE_DELAY_MILLIS);
+                 }
+             };
+ 
+-- 
+2.53.0
+

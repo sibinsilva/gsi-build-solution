@@ -33,7 +33,15 @@ Every link below is required — each one was a separate cause of enrollment fai
 - **HBM property:** `patches/personal/platform_device_phh_treble/0001-*.patch` lets `anakin` set
   `sys.phh.oplus.fppress`, handled by `phh-prop-handler.sh` (`/proc/globalHbm`, `fod_touched`, `/proc/driver/fp_xy`).
 
-Not done yet: screen-off/AOD fingerprint unlock (stock sets `persist.vendor.asus.fp.wakeup=true` after enrollment).
+- **Screen-off / AOD one-touch unlock:** while `vendor.asus.touch_control_fod` is set, the touch driver reports a
+  finger on the sensor as `KEY_F` instead of a touch and filters that finger until it lifts.
+  - `patches/personal/platform_frameworks_base/0035-*`: SystemUI arms it on screen off (UDFPS enrolled) via
+    `sys.phh.oplus.fppress.fodctrl`; on a `WAKE_KEY` wake it starts the scan through `onAodInterrupt`, and any
+    other wake disarms it immediately (otherwise on-screen touches over the sensor are swallowed).
+  - `patches/personal/platform_device_phh_treble/0002-*`: `rog5-fixups.rc` sets `persist.vendor.asus.fp.wakeup=true`
+    and mirrors `fodctrl` into `vendor.asus.touch_control_fod` (ASUS `init.asus.rc` writes both to the touch driver).
+  - `device/asus/I005D/keylayout/fts_ts.kl`: `Generic.kl` with `KEY_F` (33) → `WAKEUP` and `KEY_U`/`KEY_O`/`KEY_L`
+    unmapped so finger-up never types letters.
 
 ### B. ASUS ROG 5 Hardware Features (`TrebleApp.apk`)
 - **Aura Sync RGB:** Controls the back-cover RGB ROG logo (static, breathing, strobing, color cycle) and lighting triggers.
