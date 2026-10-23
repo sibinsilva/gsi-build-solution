@@ -1,0 +1,31 @@
+From 811b67e0d207bae0593a293ad0ea04441b255674 Mon Sep 17 00:00:00 2001
+From: Sibin Silvester <sibinsilva@gmail.com>
+Date: Fri, 23 Oct 2026 16:58:05 +0000
+Subject: [PATCH] sepolicy: Let anakin request FOD HBM via
+ sys.phh.oplus.fppress
+
+The ASUS ROG Phone 5 UDFPS HAL (hal_fingerprint_oppo_compat domain) sets
+sys.phh.oplus.fppress on finger down/up so phh-prop-handler.sh can drive
+/proc/globalHbm, fod_touched and /proc/driver/fp_xy. Only system_app and
+platform_app could set phh_oplus_prop, so every request was denied.
+
+Change-Id: I3c667ef4477ea069e0a3fc614ab388844cfadf71
+---
+ sepolicy/oppo.te | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/sepolicy/oppo.te b/sepolicy/oppo.te
+index adfe353..281b056 100644
+--- a/sepolicy/oppo.te
++++ b/sepolicy/oppo.te
+@@ -13,3 +13,7 @@ get_prop(system_server, vendor_default_prop);
+ type phh_oplus_prop, property_type;
+ set_prop(system_app, phh_oplus_prop);
+ set_prop(platform_app, phh_oplus_prop);
++
++# ASUS ROG Phone 5 (anakin) UDFPS HAL requests HBM and coordinate sync on
++# finger down/up via sys.phh.oplus.fppress, handled by phh-prop-handler.sh.
++set_prop(hal_fingerprint_oppo_compat, phh_oplus_prop)
+-- 
+2.53.0
+

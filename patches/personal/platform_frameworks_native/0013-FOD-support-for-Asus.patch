@@ -1,0 +1,194 @@
+From 5e221b5897145a2c0213c1dd955db777cc4e96b5 Mon Sep 17 00:00:00 2001
+From: Pierre-Hugues Husson <phh@phh.me>
+Date: Fri, 23 Oct 2026 16:58:05 +0000
+Subject: [PATCH] FOD support for Asus
+
+Refresh of TrebleDroid's "FOD support for Samsung and Asus" for the current
+tree, Asus part only: tag the UdfpsControllerOverlay layers with Asus layer
+classes 4/5 through the HIDL vendor800_1 command when
+persist.sys.phh.fod.asus is set, so the Asus HWC flags the FOD spot and the
+kernel runs its frame-synced FOD HBM. The Samsung buffer-usage and Gralloc
+hunks are dropped; the original patch no longer applied to this tree.
+---
+ .../CompositionEngine/src/OutputLayer.cpp     | 24 +++++++++++++++++++
+ .../DisplayHardware/AidlComposerHal.cpp       |  8 +++++++
+ .../DisplayHardware/AidlComposerHal.h         |  3 +++
+ .../DisplayHardware/ComposerHal.h             |  3 +++
+ .../surfaceflinger/DisplayHardware/HWC2.cpp   |  8 +++++++
+ .../surfaceflinger/DisplayHardware/HWC2.h     |  5 ++++
+ .../DisplayHardware/HidlComposerHal.cpp       |  7 ++++++
+ .../DisplayHardware/HidlComposerHal.h         |  3 +++
+ 8 files changed, 61 insertions(+)
+
+diff --git a/services/surfaceflinger/CompositionEngine/src/OutputLayer.cpp b/services/surfaceflinger/CompositionEngine/src/OutputLayer.cpp
+index cc3a94c..02bfd11 100644
+--- a/services/surfaceflinger/CompositionEngine/src/OutputLayer.cpp
++++ b/services/surfaceflinger/CompositionEngine/src/OutputLayer.cpp
+@@ -24,6 +24,7 @@
+ #include <compositionengine/impl/OutputCompositionState.h>
+ #include <compositionengine/impl/OutputLayer.h>
+ #include <compositionengine/impl/OutputLayerCompositionState.h>
++#include <cutils/properties.h>
+ #include <ui/FloatRect.h>
+ #include <ui/HdrRenderTypeUtils.h>
+ #include <cstdint>
+@@ -41,6 +42,9 @@
+ // TODO(b/129481165): remove the #pragma below and fix conversion issues
+ #pragma clang diagnostic pop // ignored "-Wconversion"
+ 
++static bool sCheckedProps = false;
++static bool sAsusFod = false;
++
+ using aidl::android::hardware::graphics::composer3::Composition;
+ using aidl::android::hardware::graphics::composer3::Luts;
+ 
+@@ -540,6 +544,26 @@ void OutputLayer::writeOutputDependentGeometryStateToHWC(HWC2::Layer* hwcLayer,
+                                                      ->getHeight()));
+     }
+ 
++    if(!sCheckedProps) {
++        sCheckedProps = true;
++        sAsusFod = property_get_bool("persist.sys.phh.fod.asus", false);
++    }
++
++    if (strstr(getLayerFE().getDebugName(), "UdfpsControllerOverlay#") != nullptr) {
++        if (sAsusFod) {
++            if (auto error = hwcLayer->setLayerClass(5); error != hal::Error::NONE) {
++                ALOGE("Failed setting Asus layer class");
++            }
++        }
++    }
++    if (strstr(getLayerFE().getDebugName(), "SurfaceView[UdfpsControllerOverlay](BLAST)#") != nullptr) {
++        if (sAsusFod) {
++            if (auto error = hwcLayer->setLayerClass(4); error != hal::Error::NONE) {
++                ALOGE("Failed setting Asus layer class");
++            }
++        }
++    }
++
+     ALOGV("Writing display frame [%d, %d, %d, %d]", displayFrame.left, displayFrame.top,
+           displayFrame.right, displayFrame.bottom);
+ 
+diff --git a/services/surfaceflinger/DisplayHardware/AidlComposerHal.cpp b/services/surfaceflinger/DisplayHardware/AidlComposerHal.cpp
+index 0ab9a4c..d7b608c 100644
+--- a/services/surfaceflinger/DisplayHardware/AidlComposerHal.cpp
++++ b/services/surfaceflinger/DisplayHardware/AidlComposerHal.cpp
+@@ -1883,5 +1883,13 @@ void AidlComposer::addDisplay(Display display) {
+ void AidlComposer::onHotplugConnect(Display display) {
+     addDisplay(display);
+ }
++
++Error AidlComposer::setLayerClass(Display display, Layer layer, uint32_t layerClass) {
++    (void) display;
++    (void) layer;
++    (void) layerClass;
++    return Error::NONE;
++}
++
+ } // namespace Hwc2
+ } // namespace android
+diff --git a/services/surfaceflinger/DisplayHardware/AidlComposerHal.h b/services/surfaceflinger/DisplayHardware/AidlComposerHal.h
+index 818ca0c..5d5894d 100644
+--- a/services/surfaceflinger/DisplayHardware/AidlComposerHal.h
++++ b/services/surfaceflinger/DisplayHardware/AidlComposerHal.h
+@@ -255,6 +255,9 @@ public:
+     Error startHdcpNegotiation(Display, const aidl::android::hardware::drm::HdcpLevels&) override;
+     Error getLuts(Display, const std::vector<sp<GraphicBuffer>>&,
+                   std::vector<aidl::android::hardware::graphics::composer3::Luts>*) override;
++
++    // Proprietary extensions
++    Error setLayerClass(Display display, Layer layer, uint32_t layerClass) override;
+     Error getReadbackBufferAttributes(Display display,
+                                       V3_0::ReadbackBufferAttributes* outAttributes) override;
+     Error setReadbackBuffer(Display display, const sp<GraphicBuffer>& buffer,
+diff --git a/services/surfaceflinger/DisplayHardware/ComposerHal.h b/services/surfaceflinger/DisplayHardware/ComposerHal.h
+index 76cbcb6..4b352c5 100644
+--- a/services/surfaceflinger/DisplayHardware/ComposerHal.h
++++ b/services/surfaceflinger/DisplayHardware/ComposerHal.h
+@@ -325,6 +325,9 @@ public:
+                                        const aidl::android::hardware::drm::HdcpLevels& levels) = 0;
+     virtual Error getLuts(Display display, const std::vector<sp<GraphicBuffer>>&,
+                           std::vector<V3_0::Luts>*) = 0;
++
++    // Proprietary extensions
++    virtual Error setLayerClass(Display display, Layer layer, uint32_t layerClass) = 0;
+     virtual Error getReadbackBufferAttributes(Display display,
+                                               V3_0::ReadbackBufferAttributes* outAttributes) = 0;
+     virtual Error setReadbackBuffer(Display display, const sp<GraphicBuffer>& buffer,
+diff --git a/services/surfaceflinger/DisplayHardware/HWC2.cpp b/services/surfaceflinger/DisplayHardware/HWC2.cpp
+index ecaf888..3468f29 100644
+--- a/services/surfaceflinger/DisplayHardware/HWC2.cpp
++++ b/services/surfaceflinger/DisplayHardware/HWC2.cpp
+@@ -1149,6 +1149,14 @@ Error Layer::setPictureProfileHandle(const PictureProfileHandle& handle) {
+     return static_cast<Error>(intError);
+ }
+ 
++Error Layer::setLayerClass(uint32_t layerClass) {
++    if (CC_UNLIKELY(!mDisplay)) {
++        return Error::BAD_DISPLAY;
++    }
++    auto intError = mComposer.setLayerClass(mDisplay->getId(), mId, layerClass);
++    return static_cast<Error>(intError);
++}
++
+ } // namespace impl
+ } // namespace HWC2
+ } // namespace android
+diff --git a/services/surfaceflinger/DisplayHardware/HWC2.h b/services/surfaceflinger/DisplayHardware/HWC2.h
+index 5b2c644..9b01da9 100644
+--- a/services/surfaceflinger/DisplayHardware/HWC2.h
++++ b/services/surfaceflinger/DisplayHardware/HWC2.h
+@@ -408,6 +408,9 @@ public:
+             aidl::android::hardware::graphics::composer3::Luts& luts) = 0;
+     [[nodiscard]] virtual hal::Error setPictureProfileHandle(
+             const PictureProfileHandle& handle) = 0;
++
++    // Proprietary HAL
++    [[nodiscard]] virtual hal::Error setLayerClass(uint32_t layerClass) = 0;
+ };
+ 
+ namespace impl {
+@@ -461,6 +464,8 @@ public:
+     hal::Error setLuts(aidl::android::hardware::graphics::composer3::Luts&) override;
+     hal::Error setPictureProfileHandle(const PictureProfileHandle& handle) override;
+ 
++    // Proprietary HAL
++    hal::Error setLayerClass(uint32_t layerClass) override;
+ private:
+     // These are references to data owned by HWComposer, which will outlive
+     // this HWC2::Layer, so these references are guaranteed to be valid for
+diff --git a/services/surfaceflinger/DisplayHardware/HidlComposerHal.cpp b/services/surfaceflinger/DisplayHardware/HidlComposerHal.cpp
+index 0bf5ef3..a84c116 100644
+--- a/services/surfaceflinger/DisplayHardware/HidlComposerHal.cpp
++++ b/services/surfaceflinger/DisplayHardware/HidlComposerHal.cpp
+@@ -1490,6 +1490,13 @@ Error HidlComposer::setLayerPictureProfileId(Display, Layer, PictureProfileId) {
+     return Error::UNSUPPORTED;
+ }
+ 
++Error HidlComposer::setLayerClass(Display display, Layer layer, uint32_t layerClass) {
++    mWriter.selectDisplay(display);
++    mWriter.selectLayer(layer);
++    mWriter.vendor800_1(layerClass);
++    return Error::NONE;
++}
++
+ void HidlComposer::registerCallback(ComposerCallback& callback) {
+     const bool vsyncSwitchingSupported =
+             isSupported(Hwc2::Composer::OptionalFeature::RefreshRateSwitching);
+diff --git a/services/surfaceflinger/DisplayHardware/HidlComposerHal.h b/services/surfaceflinger/DisplayHardware/HidlComposerHal.h
+index 2c885dc..80a88fc 100644
+--- a/services/surfaceflinger/DisplayHardware/HidlComposerHal.h
++++ b/services/surfaceflinger/DisplayHardware/HidlComposerHal.h
+@@ -367,6 +367,9 @@ public:
+     Error startHdcpNegotiation(Display, const aidl::android::hardware::drm::HdcpLevels&) override;
+     Error getLuts(Display, const std::vector<sp<GraphicBuffer>>&,
+                   std::vector<aidl::android::hardware::graphics::composer3::Luts>*) override;
++
++    // Proprietary extensions
++    Error setLayerClass(Display display, Layer layer, uint32_t layerClass) override;
+     Error getReadbackBufferAttributes(Display display,
+                                       V3_0::ReadbackBufferAttributes* outAttributes) override;
+     Error setReadbackBuffer(Display display, const sp<GraphicBuffer>& buffer,
+-- 
+2.53.0
+

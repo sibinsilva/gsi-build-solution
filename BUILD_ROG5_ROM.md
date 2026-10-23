@@ -11,10 +11,29 @@ Unlike generic GSIs that must accommodate hundreds of OEM devices, this build ta
 ## 2. Hardware Architecture & Key Fixes
 
 ### A. Goodix Optical Under-Display Fingerprint (UDFPS @2.3 HIDL)
-- **Vendor Daemon Preservation:** In `/system/bin/rw-system.sh`, do **not** bind-mount an empty file over `/vendor/bin/hw/android.hardware.biometrics.fingerprint@2.1-service`. On ROG 5, that vendor binary is what publishes `vendor.goodix.hardware.biometrics.fingerprint@2.1::IGoodixFingerprintDaemon`.
-- **Deadlock Avoidance:** The system-side adapter HAL (`device/phh/treble/hal/anakin-fp/BiometricsFingerprint.cpp`) calls `IGoodixFingerprintDaemon::tryGetService()` (non-blocking) instead of `getService()`.
-- **Null Safety:** In `BiometricsFingerprint.cpp`, all legacy `mDevice` calls (including `setActiveGroup`) are guarded against null pointers, preventing crashes during fingerprint enrollment.
-- **Coordinate Bridging:** UDFPS touch events are mapped to 16.16 coordinate format and routed directly to `/data/vendor/fp_xy` with high-brightness mode (HBM) triggering.
+The stock vendor `@2.1-service` owns the Goodix sensor, TEE app and `IGoodixFingerprintDaemon`; the
+system-side `anakin` HAL (`device/phh/treble/hal/anakin-fp`) adds the UDFPS 2.3 interface on top of it.
+Every link below is required — each one was a separate cause of enrollment failing:
+
+- **VINTF:** `device/asus/I005D/framework_manifest.xml` declares only `IBiometricsFingerprint@2.3/default`
+  (wired via `DEVICE_FRAMEWORK_MANIFEST_FILE` in `BoardConfig.mk`). libhidl refuses to register a version that
+  isn't in a manifest; 2.3 also covers 2.1/2.2 lookups. Never list 2.1 and 2.3 for the same instance — libvintf
+  rejects it ("Conflicting FqInstance" / "Duplicated major version") and the device fails to boot. Validate any
+  manifest change with `checkvintf` against the phone's vendor VINTF files before flashing.
+- **Vendor daemon kept alive:** `rw-system.sh` must not bind-mount over `/vendor/bin/hw/android.hardware.biometrics.fingerprint@2.1-service`.
+- **Registration order:** `anakin` waits for the Goodix daemon and the vendor `IBiometricsFingerprint@2.1` before
+  registering, so it registers last (hwservicemanager keeps the last registrant of `default`).
+- **Forwarding:** `libgf_hal` can't be loaded a second time in `anakin`, so the 2.1 calls (enroll, authenticate, …)
+  are forwarded to the vendor service; `anakin` drives UDFPS through daemon commands 200001/200002/200003.
+- **Illumination kept on:** `anakin` drops the HAL's `ACQUIRED_VENDOR` callbacks (as stock does); SystemUI would
+  otherwise remove the UDFPS illumination before capture (`GF_ERROR_ACQUIRED_IMAGER_DIRTY`).
+- **FOD spot layer:** `patches/personal/platform_frameworks_native/0013-FOD-support-for-Asus.patch` tags the
+  UdfpsControllerOverlay layers with Asus layer classes 4/5 (`persist.sys.phh.fod.asus=true`, set by `rw-system.sh`),
+  so the Asus HWC flags the spot and the kernel runs its frame-synced FOD HBM.
+- **HBM property:** `patches/personal/platform_device_phh_treble/0001-*.patch` lets `anakin` set
+  `sys.phh.oplus.fppress`, handled by `phh-prop-handler.sh` (`/proc/globalHbm`, `fod_touched`, `/proc/driver/fp_xy`).
+
+Not done yet: screen-off/AOD fingerprint unlock (stock sets `persist.vendor.asus.fp.wakeup=true` after enrollment).
 
 ### B. ASUS ROG 5 Hardware Features (`TrebleApp.apk`)
 - **Aura Sync RGB:** Controls the back-cover RGB ROG logo (static, breathing, strobing, color cycle) and lighting triggers.
@@ -117,20 +136,28 @@ Before releasing or flashing, verify the output image using the unprivileged `de
 
 ### Option A: Booting via DSU (Dynamic System Updates — Safe Dual-Boot)
 
-1. Decompress the `.xz` archive:
+DSU's `file://` installer rejects a raw `.img` (`UnsupportedFormatException`) and needs the
+uncompressed system size passed explicitly; without `KEY_SYSTEM_SIZE`, gsid fails with
+"Failed to start installation with requested size: 0".
+
+1. Decompress the `.xz` archive and re-compress as gzip:
    ```bash
    xz -d -v ROG5_I005D-stockvendor-GAPPS-userdebug-20261023.img.xz
+   gzip -k ROG5_I005D-stockvendor-GAPPS-userdebug-20261023.img
    ```
-2. Push the image to device storage and start DSU installation:
+2. Push the gzip image to device storage and start DSU installation, passing the raw image size in bytes
+   (recompute it for every build — it changes between builds):
    ```bash
-   adb push ROG5_I005D-stockvendor-GAPPS-userdebug-20261023.img /sdcard/
+   adb push ROG5_I005D-stockvendor-GAPPS-userdebug-20261023.img.gz /sdcard/
    adb shell am start-activity \
        -n com.android.dynsystem/com.android.dynsystem.VerificationActivity \
        -a android.os.image.action.START_INSTALL \
-       -d file:///sdcard/ROG5_I005D-stockvendor-GAPPS-userdebug-20261023.img \
+       -d file:///sdcard/ROG5_I005D-stockvendor-GAPPS-userdebug-20261023.img.gz \
+       --el KEY_SYSTEM_SIZE $(stat -c%s ROG5_I005D-stockvendor-GAPPS-userdebug-20261023.img) \
        --el KEY_USERDATA_SIZE 17179869184
    ```
 3. Tap **Restart** from the Android system notification once installation is finished.
+   If the image fails to boot, DSU discards the session on the next reboot and the stock system returns.
 
 ### Option B: Flashing via `fastbootd`
 
