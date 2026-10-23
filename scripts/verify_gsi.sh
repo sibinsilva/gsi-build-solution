@@ -102,12 +102,56 @@ verify_image() {
     echo "==> [PASS] system.img verification succeeded!"
 }
 
+verify_rog5_image() {
+    echo "==> Verifying ROG Phone 5/5s (I005D) specifics in: $IMAGE_PATH"
+    local failed=0
+    local required_paths=(
+        "/system/bin/hw/android.hardware.biometrics.fingerprint@2.3-service.anakin"
+        "/system/etc/init/android.hardware.biometrics.fingerprint@2.3-service.anakin.rc"
+        "/system/etc/permissions/android.hardware.fingerprint.xml"
+    )
+
+    for p in "${required_paths[@]}"; do
+        if /usr/sbin/debugfs -R "stat $p" "$IMAGE_PATH" 2>/dev/null | grep -q "Inode:"; then
+            echo "  [OK]   Present in image: $p"
+        else
+            echo "  [FAIL] MISSING in image: $p"
+            failed=1
+        fi
+    done
+
+    local build_prop
+    build_prop="$(/usr/sbin/debugfs -R "cat /system/build.prop" "$IMAGE_PATH" 2>/dev/null)"
+    local required_props=(
+        "ro.product.system.device=ASUS_I005_1"
+        "ro.product.system.model=ASUS_I005DA"
+    )
+    for prop in "${required_props[@]}"; do
+        if grep -qx "$prop" <<<"$build_prop"; then
+            echo "  [OK]   build.prop: $prop"
+        else
+            echo "  [FAIL] build.prop missing: $prop"
+            failed=1
+        fi
+    done
+
+    if [ "$failed" -ne 0 ]; then
+        echo "[ERROR] ROG5 image verification FAILED."
+        return 1
+    fi
+    echo "==> [PASS] ROG5 image verification succeeded!"
+}
+
 case "$MODE" in
     --tree)
         verify_tree
         ;;
     --image)
         verify_image
+        ;;
+    --rog5)
+        verify_image
+        verify_rog5_image
         ;;
     --all|*)
         verify_tree

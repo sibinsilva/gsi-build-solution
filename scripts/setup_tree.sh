@@ -24,6 +24,7 @@ echo "==> [2/3] Syncing Treble, VNDK (v28/v29/v30), Magisk (android-10.0), and Q
 cd "$SOURCE_DIR"
 repo sync -c --no-tags --force-sync -j8 \
     device/phh/treble \
+    device/asus/I005D \
     vendor/hardware_overlay \
     treble_app \
     vendor/vndk-tests \
@@ -35,9 +36,11 @@ repo sync -c --no-tags --force-sync -j8 \
     prebuilts/vndk/v29 \
     prebuilts/vndk/v30
 
-echo "==> [3/3] Ensuring clean state in device/phh/treble, treble_app, and vendor/interfaces"
+echo "==> [3/3] Ensuring clean state in device/phh/treble, device/asus/I005D, treble_app, and vendor/interfaces"
 git -C "$SOURCE_DIR/device/phh/treble" checkout -f
 git -C "$SOURCE_DIR/device/phh/treble" clean -fd
+git -C "$SOURCE_DIR/device/asus/I005D" checkout -f
+git -C "$SOURCE_DIR/device/asus/I005D" clean -fd
 git -C "$SOURCE_DIR/treble_app" checkout -f
 git -C "$SOURCE_DIR/treble_app" clean -fd
 git -C "$SOURCE_DIR/vendor/interfaces" checkout -f
