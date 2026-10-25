@@ -12,8 +12,8 @@ set -euo pipefail
 #   3. Uses `patch --no-backup-if-mismatch` so zero `.orig` files are left behind
 #      to break Android AAPT2 resource compilation.
 #   4. Skips patches that are already applied (safe to re-run at any time).
-#   5. Fails (exit 1) if any patch cannot be applied, unless it is listed in
-#      patches/KNOWN_UNAPPLIED.txt.
+#   5. Skips patches listed in patches/KNOWN_UNAPPLIED.txt without trying them,
+#      and fails (exit 1) if any other patch cannot be applied.
 #   6. --check reports every patch's status without modifying the tree.
 # ==============================================================================
 
@@ -143,6 +143,13 @@ apply_category() {
             fi
             if applied_by_subject "$patch_file" "$patch_name"; then
                 echo "  [ALREADY APPLIED (by subject)] $patch_name"
+                continue
+            fi
+            # Listed patches are never attempted: a patch that only applies with
+            # fuzz would otherwise change the tree from the tested state.
+            if is_known_unapplied "$patch_rel"; then
+                echo "  [KNOWN UNAPPLIED] $patch_name"
+                KNOWN_SKIPPED+=("$patch_rel")
                 continue
             fi
 

@@ -101,3 +101,9 @@ personal/platform_system_core/0006-init-strip-xperms-CIL-rules-and-extend-detect
 personal/platform_system_sepolicy/0003-remove-permissives-lines.patch
 personal/platform_system_sepolicy/0009-restore-2024-obsolete.patch
 personal/platform_system_sepolicy/0011-fix-sepolicy-again.patch
+
+# Fuzz-only: not in the tested tree and they only apply via `patch` fuzz, which
+# could misplace or duplicate code. Listed so a fresh tree matches the tested one.
+trebledroid/platform_frameworks_av/0006-audiopolicy-try-again-with-trimmed-audio-port-name-i.patch
+trebledroid/platform_frameworks_opt_telephony/0004-Reintroduce-public-void-TelephonyMetrics.writeRilSen.patch
+trebledroid/platform_system_core/0015-Disable-quotas-on-legacy-devices-with-encryption-dis.patch
