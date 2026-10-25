@@ -43,6 +43,19 @@ Every link below is required — each one was a separate cause of enrollment fai
   - `device/asus/I005D/keylayout/fts_ts.kl`: `Generic.kl` with `KEY_F` (33) → `WAKEUP` and `KEY_U`/`KEY_O`/`KEY_L`
     unmapped so finger-up never types letters.
 
+### A2. ASUS stock Camera (`com.asus.camera`)
+The stock ASUS Camera (8.21.8.0.230327, from firmware WW-33.0210.0210.200) ships as a presigned privileged app.
+- **App:** private repo `sibinsilva/vendor_asus_I005D_camera` → `vendor/asus/camera` (proprietary APK; keep the repo
+  private; `repo sync` needs GitHub auth for it). Installed by `device.mk` (`PRODUCT_PACKAGES += AsusCamera`).
+- **The gate:** the ASUS camx CHI override (`ExtensionModule::GetNumCameras`) caps the camera count at 4 unless
+  `vendor.camera.asus.system=1`. Stock sets it in `/system/build.prop`, together with ASUS Camera's per-lens config;
+  `device/asus/I005D/system.prop` carries that block verbatim. `vendor.camera.*` is labelled `vendor_asus_camera_prop`,
+  so `getprop` from the shell shows nothing; check `dumpsys media.camera` instead (7 devices, like stock).
+- **Aux cameras:** the framework hides camera IDs ≥ 2 from apps not in `vendor.camera.aux.packagelist`;
+  `patches/personal/platform_device_phh_treble/0003-*` sets it to stock's list plus `com.asus.camera`.
+- **Kept from the investigation (tested, maybe not required):** `ro.vendor.qti.va_aosp/va_odm.support=1` with their
+  QSSI SELinux labels (`0004-*`), `ro.hardware.chipname/cpuinfo`, and `ro.build.product=ZS673KS` in `rw-system.sh`.
+
 ### B. ASUS ROG 5 Hardware Features (`TrebleApp.apk`)
 - **Aura Sync RGB:** Controls the back-cover RGB ROG logo (static, breathing, strobing, color cycle) and lighting triggers.
 - **AirTriggers:** Ultrasonic shoulder buttons sensitivity, vibration feedback, and tap/slide mapping.

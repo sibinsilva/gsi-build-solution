@@ -1,0 +1,40 @@
+From c16cd5080bf8af640cd29cdd1347cff43d4abdbb Mon Sep 17 00:00:00 2001
+From: Sibin Silvester <sibinsilva@gmail.com>
+Date: Sun, 25 Oct 2026 09:02:45 +0000
+Subject: [PATCH] rog5-fixups: Set the ASUS Camera properties like stock
+
+At early-init, set the Qualcomm "vendor enhanced framework" flags
+(ro.vendor.qti.va_aosp/va_odm.support), ro.hardware.chipname/cpuinfo,
+and vendor.camera.aux.packagelist (stock value plus com.asus.camera:
+Camera.shouldExposeAuxCamera hides camera IDs >= 2 from unlisted apps,
+and ASUS Camera opens the logical multi-camera ID 6).
+
+Change-Id: Iea03bc7acf7fd3a752e9b884803875fee1338fb8
+---
+ rog5-fixups.rc | 13 +++++++++++++
+ 1 file changed, 13 insertions(+)
+
+diff --git a/rog5-fixups.rc b/rog5-fixups.rc
+index f24d59b..4f43e9d 100644
+--- a/rog5-fixups.rc
++++ b/rog5-fixups.rc
+@@ -38,3 +38,16 @@ on property:sys.boot_completed=1
+ 
+ on property:sys.phh.oplus.fppress.fodctrl=*
+     setprop vendor.asus.touch_control_fod ${sys.phh.oplus.fppress.fodctrl}
++
++# ASUS Camera. On stock, the vendor camx HAL exposes 7 camera devices
++# (including the logical multi-cameras ASUS Camera opens, IDs 5 and 6);
++# here it exposed only 4. These are set by stock's Qualcomm/ASUS system
++# build and absent on ours, so set them like stock before the camera
++# provider starts. The packagelist matches stock plus ASUS Camera
++# (Camera.shouldExposeAuxCamera filters IDs >= 2 by it).
++on early-init
++    setprop ro.vendor.qti.va_aosp.support 1
++    setprop ro.vendor.qti.va_odm.support 1
++    setprop vendor.camera.aux.packagelist org.codeaurora.snapcam,android,com.android.systemui,com.asus.camera
++    setprop ro.hardware.chipname lahaina
++    setprop ro.hardware.cpuinfo sm8350
+-- 
+2.53.0
+

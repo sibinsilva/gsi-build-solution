@@ -25,6 +25,7 @@ cd "$SOURCE_DIR"
 repo sync -c --no-tags --force-sync -j8 \
     device/phh/treble \
     device/asus/I005D \
+    vendor/asus/camera \
     vendor/hardware_overlay \
     treble_app \
     vendor/vndk-tests \

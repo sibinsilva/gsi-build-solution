@@ -1,0 +1,46 @@
+From 3236a9b3acebf4fe9c6ec37711423013367ab010 Mon Sep 17 00:00:00 2001
+From: Sibin Silvester <sibinsilva@gmail.com>
+Date: Sun, 25 Oct 2026 09:02:45 +0000
+Subject: [PATCH] sepolicy: Label the Qualcomm va_* properties like stock QSSI
+
+Port device/qcom/sepolicy/generic's labels for ro.vendor.qti.va_aosp.support
+and ro.vendor.qti.va_odm.support (vendor_exported_system_prop /
+vendor_exported_odm_prop, readable by every domain). Without them the
+properties fall under vendor_default_prop, which vendor HALs such as the
+camx camera provider cannot read.
+
+Change-Id: I9ac2383f06c525c49ea9726b23334eed9c508f0e
+---
+ sepolicy/property.te       | 9 +++++++++
+ sepolicy/property_contexts | 2 ++
+ 2 files changed, 11 insertions(+)
+ create mode 100644 sepolicy/property.te
+
+diff --git a/sepolicy/property.te b/sepolicy/property.te
+new file mode 100644
+index 0000000..0c05611
+--- /dev/null
++++ b/sepolicy/property.te
+@@ -0,0 +1,9 @@
++
++# Qualcomm "vendor enhanced framework" flags, labelled like stock QSSI
++# (device/qcom/sepolicy/generic) so vendor HALs can read them. The ASUS camx
++# CHI override (isRunningWithVendorEnhancedFramework) only exposes the
++# logical/aux cameras when ro.vendor.qti.va_aosp.support reads true.
++vendor_restricted_prop(vendor_exported_system_prop)
++vendor_restricted_prop(vendor_exported_odm_prop)
++get_prop(domain, vendor_exported_system_prop)
++get_prop(domain, vendor_exported_odm_prop)
+diff --git a/sepolicy/property_contexts b/sepolicy/property_contexts
+index 38532a2..35e9f0e 100644
+--- a/sepolicy/property_contexts
++++ b/sepolicy/property_contexts
+@@ -2,3 +2,5 @@ persist.sys.sf.hs_mode         u:object_r:sf_hs_mode_prop:s0
+ hwc.exynos.vsync_mode      u:object_r:vendor_hwc_prop:s0
+ 
+ sys.phh.oplus.fppress    u:object_r:phh_oplus_prop:s0
++ro.vendor.qti.va_aosp.support    u:object_r:vendor_exported_system_prop:s0 exact bool
++ro.vendor.qti.va_odm.support     u:object_r:vendor_exported_odm_prop:s0 exact bool
+-- 
+2.53.0
+
