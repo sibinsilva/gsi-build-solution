@@ -56,6 +56,12 @@ The stock ASUS Camera (8.21.8.0.230327, from firmware WW-33.0210.0210.200) ships
 - **Kept from the investigation (tested, maybe not required):** `ro.vendor.qti.va_aosp/va_odm.support=1` with their
   QSSI SELinux labels (`0004-*`), `ro.hardware.chipname/cpuinfo`, and `ro.build.product=ZS673KS` in `rw-system.sh`.
 
+### A3. SystemUI stability (GMS Instant Hotspot)
+`GoogleConfigOverlay_GMS` (Pixel GMS) points the Wi-Fi shared connectivity client at GMS `magictether`, which only exists
+on Pixels; GMS answers "Service without Chimera impl" and SystemUI crash-loops after first boot. The product RRO
+`device/asus/I005D/rro/ROG5FrameworkOverlay` (priority 100, beats the GMS overlay's 0) restores the AOSP empty
+`config_sharedConnectivityServicePackage` / `IntentAction`. Check with `adb shell cmd overlay list android`.
+
 ### B. ASUS ROG 5 Hardware Features (`TrebleApp.apk`)
 - **Aura Sync RGB:** Controls the back-cover RGB ROG logo (static, breathing, strobing, color cycle) and lighting triggers.
 - **AirTriggers:** Ultrasonic shoulder buttons sensitivity, vibration feedback, and tap/slide mapping.
