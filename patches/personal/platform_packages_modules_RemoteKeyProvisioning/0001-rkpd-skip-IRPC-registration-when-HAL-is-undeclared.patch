@@ -1,4 +1,4 @@
-From 7b270397adfb0d65b5f0d9830b94696296970ae4 Mon Sep 17 00:00:00 2001
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Sibin Silvester <sibinsilva@gmail.com>
 Date: Sun, 12 Jul 2026 15:09:49 +0000
 Subject: [PATCH] rkpd: skip IRPC registration when HAL is undeclared
@@ -10,7 +10,6 @@ path fails early and can contribute to boot-time instability. Add a declaration
 check and return a controlled error when the IRPC HAL is absent, allowing the
 system to continue booting without depending on vendor support that does not
 exist.`
-
 
 Change-Id: I2199c873f643f7184d2f7540cb5d63f9357fa1ce
 ---
@@ -58,6 +57,3 @@ index 7385baf..408b7f6 100644
          try {
              // The connection object is used to get exactly one IRegistration binder. Once we
              // get it, we unbind the connection. This allows the bound service to be terminated
--- 
-2.43.0
-

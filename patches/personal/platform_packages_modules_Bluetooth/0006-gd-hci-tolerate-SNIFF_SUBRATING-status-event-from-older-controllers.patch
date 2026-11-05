@@ -1,7 +1,7 @@
-From 92f0e99b597ad8590abf49c7e370800c0027a6dd Mon Sep 17 00:00:00 2001
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: "Christopher A. Williamson" <contact@chrisaw.io>
 Date: Sun, 14 Jun 2026 17:22:18 +0100
-Subject: [PATCH 6/6] gd: hci: tolerate SNIFF_SUBRATING status event from older
+Subject: [PATCH] gd: hci: tolerate SNIFF_SUBRATING status event from older
  controllers
 
 Some older Bluetooth controllers (notably MediaTek) respond to the
@@ -20,7 +20,7 @@ Fixes: #96
  1 file changed, 6 insertions(+), 1 deletion(-)
 
 diff --git a/system/gd/hci/hci_layer.cc b/system/gd/hci/hci_layer.cc
-index ee3b791..52d6d23 100644
+index 7c1e773..8b2f898 100644
 --- a/system/gd/hci/hci_layer.cc
 +++ b/system/gd/hci/hci_layer.cc
 @@ -258,11 +258,16 @@ struct HciLayer::impl {
@@ -41,6 +41,3 @@ index ee3b791..52d6d23 100644
  
        auto payload = std::make_unique<packet::RawBuilder>();
        payload->AddOctets1(static_cast<uint8_t>(status_view.GetStatus()));
--- 
-2.54.0
-

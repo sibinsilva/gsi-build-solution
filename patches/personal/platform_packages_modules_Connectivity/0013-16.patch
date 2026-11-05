@@ -1,7 +1,7 @@
-From daa2368d8b24d78fb13c3abec4d33536735ec6d9 Mon Sep 17 00:00:00 2001
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Sibin Silvester <sibinsilva@gmail.com>
 Date: Sun, 26 Apr 2026 21:55:17 +0000
-Subject: [PATCH 13/14] -16
+Subject: [PATCH] -16
 
 ---
  bpf/loader/NetBpfLoad.cpp                     | 45 ++++++++++---------
@@ -431,6 +431,3 @@ index b81ce24..d2c2653 100644
          try {
              final short config = sDataSaverEnabledMap.getValue(DATA_SAVER_ENABLED_KEY).val;
              // Any non-zero value converted from short to boolean is true by convention.
--- 
-2.43.0
-

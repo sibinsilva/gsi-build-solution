@@ -1,0 +1,23 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Sibin Silvester <sibinsilva@gmail.com>
+Date: Mon, 23 Mar 2026 00:56:34 +0100
+Subject: [PATCH] Sdcard-fix
+
+---
+ .../core/java/com/android/server/StorageManagerService.java    | 3 +--
+ 1 file changed, 1 insertion(+), 2 deletions(-)
+
+diff --git a/services/core/java/com/android/server/StorageManagerService.java b/services/core/java/com/android/server/StorageManagerService.java
+index d6c69bc32..16bf11ca8 100644
+--- a/services/core/java/com/android/server/StorageManagerService.java
++++ b/services/core/java/com/android/server/StorageManagerService.java
+@@ -1668,8 +1668,7 @@ class StorageManagerService extends IStorageManager.Stub
+ 
+             // Adoptable public disks are visible to apps, since they meet
+             // public API requirement of being in a stable location.
+-            // Assume all SDs match this as well
+-            if (vol.getDisk().isAdoptable() || vol.getDisk().isSd()) {
++            if (vol.getDisk().isAdoptable()) {
+                 vol.setMountFlags(vol.getMountFlags() | VolumeInfo.MOUNT_FLAG_VISIBLE_FOR_WRITE);
+             } else if (vol.getDisk().isSd()) {
+                 vol.setMountFlags(vol.getMountFlags() | VolumeInfo.MOUNT_FLAG_VISIBLE_FOR_WRITE);

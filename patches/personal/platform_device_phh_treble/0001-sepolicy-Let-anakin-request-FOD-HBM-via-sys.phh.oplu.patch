@@ -1,4 +1,4 @@
-From 811b67e0d207bae0593a293ad0ea04441b255674 Mon Sep 17 00:00:00 2001
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Sibin Silvester <sibinsilva@gmail.com>
 Date: Fri, 23 Oct 2026 16:58:05 +0000
 Subject: [PATCH] sepolicy: Let anakin request FOD HBM via
@@ -26,6 +26,3 @@ index adfe353..281b056 100644
 +# ASUS ROG Phone 5 (anakin) UDFPS HAL requests HBM and coordinate sync on
 +# finger down/up via sys.phh.oplus.fppress, handled by phh-prop-handler.sh.
 +set_prop(hal_fingerprint_oppo_compat, phh_oplus_prop)
--- 
-2.53.0
-

@@ -1,7 +1,7 @@
-From 2e439f6b57026b31d25de70f6e9c61edb5126c53 Mon Sep 17 00:00:00 2001
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Pierre-Hugues Husson <phh@phh.me>
 Date: Mon, 27 Dec 2021 18:00:43 -0500
-Subject: [PATCH 07/16] powermanager: Add support Samsung miscpower HAL
+Subject: [PATCH] powermanager: Add support Samsung miscpower HAL
 
 Several various configurations need to be supported:
 - Android Pie vendors have a android.hardware.power HIDL default + "miscpower"
@@ -27,7 +27,7 @@ Change-Id: I182a91ccb0a89f9d0d7d41f36eccab218b553bbc
  7 files changed, 140 insertions(+), 6 deletions(-)
 
 diff --git a/include/powermanager/PowerHalLoader.h b/include/powermanager/PowerHalLoader.h
-index ab66336738..32cc39b76b 100644
+index ab66336..32cc39b 100644
 --- a/include/powermanager/PowerHalLoader.h
 +++ b/include/powermanager/PowerHalLoader.h
 @@ -22,6 +22,7 @@
@@ -55,7 +55,7 @@ index ab66336738..32cc39b76b 100644
      static sp<hardware::power::V1_0::IPower> loadHidlV1_0Locked()
              EXCLUSIVE_LOCKS_REQUIRED(gHalMutex);
 diff --git a/include/powermanager/PowerHalWrapper.h b/include/powermanager/PowerHalWrapper.h
-index 17a4cd4eff..e7b12d922f 100644
+index 17a4cd4..e7b12d9 100644
 --- a/include/powermanager/PowerHalWrapper.h
 +++ b/include/powermanager/PowerHalWrapper.h
 @@ -32,6 +32,7 @@
@@ -125,7 +125,7 @@ index 17a4cd4eff..e7b12d922f 100644
  
  }; // namespace android
 diff --git a/services/powermanager/Android.bp b/services/powermanager/Android.bp
-index 78f8f7bd96..ef01e136d0 100644
+index 78f8f7b..ef01e13 100644
 --- a/services/powermanager/Android.bp
 +++ b/services/powermanager/Android.bp
 @@ -42,6 +42,7 @@ cc_library_shared {
@@ -145,7 +145,7 @@ index 78f8f7bd96..ef01e136d0 100644
  
      whole_static_libs: [
 diff --git a/services/powermanager/PowerHalController.cpp b/services/powermanager/PowerHalController.cpp
-index a817a7bf2e..ac1f88c59f 100644
+index a817a7b..ac1f88c 100644
 --- a/services/powermanager/PowerHalController.cpp
 +++ b/services/powermanager/PowerHalController.cpp
 @@ -20,6 +20,7 @@
@@ -186,7 +186,7 @@ index a817a7bf2e..ac1f88c59f 100644
          }
          return std::make_unique<HidlHalWrapperV1_0>(halHidlV1_0);
 diff --git a/services/powermanager/PowerHalLoader.cpp b/services/powermanager/PowerHalLoader.cpp
-index ea284c36d8..2f5a857a18 100644
+index ea284c3..2f5a857 100644
 --- a/services/powermanager/PowerHalLoader.cpp
 +++ b/services/powermanager/PowerHalLoader.cpp
 @@ -21,6 +21,7 @@
@@ -231,7 +231,7 @@ index ea284c36d8..2f5a857a18 100644
  
  int32_t PowerHalLoader::getAidlVersion() {
 diff --git a/services/powermanager/PowerHalWrapper.cpp b/services/powermanager/PowerHalWrapper.cpp
-index 9c83bf5af3..7973386d4a 100644
+index 9c83bf5..7973386 100644
 --- a/services/powermanager/PowerHalWrapper.cpp
 +++ b/services/powermanager/PowerHalWrapper.cpp
 @@ -238,6 +238,10 @@ HalResult<void> AidlHalWrapper::setMode(Aidl::Mode mode, bool enabled) {
@@ -319,10 +319,10 @@ index 9c83bf5af3..7973386d4a 100644
  
  } // namespace power
 diff --git a/services/surfaceflinger/CompositionEngine/Android.bp b/services/surfaceflinger/CompositionEngine/Android.bp
-index 2d0f874ad0..504fe0b6b8 100644
+index 259e86b..5d0c8ed 100644
 --- a/services/surfaceflinger/CompositionEngine/Android.bp
 +++ b/services/surfaceflinger/CompositionEngine/Android.bp
-@@ -40,6 +40,7 @@ cc_defaults {
+@@ -39,6 +39,7 @@ cc_defaults {
          "libSurfaceFlingerProp",
          "libui",
          "libutils",
@@ -330,6 +330,3 @@ index 2d0f874ad0..504fe0b6b8 100644
      ],
      static_libs: [
          "libguiflags",
--- 
-2.25.1
-

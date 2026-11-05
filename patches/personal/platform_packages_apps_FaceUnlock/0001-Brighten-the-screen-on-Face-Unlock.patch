@@ -1,4 +1,4 @@
-From f1d735a40e3dd4a2737a1be0ddbbce8a980e71ad Mon Sep 17 00:00:00 2001
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: mytja <mitja@severkar.eu>
 Date: Sun, 27 Oct 2024 18:42:51 +0100
 Subject: [PATCH] Brighten the screen on Face Unlock
@@ -63,6 +63,3 @@ index 35d5266..7846b97 100644
          Log.i(TAG, "stop exit")
      }
  
--- 
-2.34.1
-

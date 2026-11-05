@@ -1,4 +1,4 @@
-From c16cd5080bf8af640cd29cdd1347cff43d4abdbb Mon Sep 17 00:00:00 2001
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Sibin Silvester <sibinsilva@gmail.com>
 Date: Sun, 25 Oct 2026 09:02:45 +0000
 Subject: [PATCH] rog5-fixups: Set the ASUS Camera properties like stock
@@ -35,6 +35,3 @@ index f24d59b..4f43e9d 100644
 +    setprop vendor.camera.aux.packagelist org.codeaurora.snapcam,android,com.android.systemui,com.asus.camera
 +    setprop ro.hardware.chipname lahaina
 +    setprop ro.hardware.cpuinfo sm8350
--- 
-2.53.0
-

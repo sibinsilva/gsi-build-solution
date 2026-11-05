@@ -9,8 +9,10 @@ set -euo pipefail
 #   2. Maps platform_build_core, platform_build_target, platform_build_target_board
 #      to build/make, and platform_vendor_pixel_gms / platform_vendor_gms to the
 #      active GMS vendor directory.
-#   3. Uses `patch --no-backup-if-mismatch` so zero `.orig` files are left behind
-#      to break Android AAPT2 resource compilation.
+#   3. Applies each repo's patches as one ordered series (NNNN-*.patch numbers run
+#      across patches/trebledroid and patches/personal) with `git am` only: the
+#      series is exported from the tested tree, so any patch that does not apply
+#      cleanly stops that repo's series (no fuzz). See patches/INFINITY_PORT.md.
 #   4. Skips patches that are already applied (safe to re-run at any time).
 #   5. Skips patches listed in patches/KNOWN_UNAPPLIED.txt without trying them,
 #      and fails (exit 1) if any other patch cannot be applied.
@@ -47,8 +49,15 @@ KNOWN_SKIPPED=()
 # repo, so no pipe into grep -q that would SIGPIPE under pipefail).
 applied_by_subject() {
     local patch_file="$1" patch_name="$2" subject
-    subject="$(sed -n 's/^Subject: \(\[PATCH[^]]*\] \)\{0,1\}//p' "$patch_file" | head -1)"
+    # Subject lines may be folded over several lines (RFC 2822); unfold them and
+    # squeeze whitespace, as git does for the commit subject.
+    subject="$(awk '/^Subject: /{s=substr($0,10); f=1; next} f&&/^[ \t]/{s=s $0; next} f{exit} END{print s}' "$patch_file" |
+        sed -e 's/^\[PATCH[^]]*\] //' -e 's/[[:space:]]\{1,\}/ /g' -e 's/^ //' -e 's/ $//')"
+    # "Apply <file>" commits from earlier runs may use an older NNNN- number.
+    local stem="${patch_name#[0-9][0-9][0-9][0-9]-}"
     command grep -xF -e "$subject" -e "Apply $patch_name" -e "Apply $patch_name (with fuzz)" \
+        <<<"$(sed -e 's/[[:space:]]\{1,\}/ /g' <<<"$REPO_SUBJECTS")" >/dev/null ||
+    command grep -xE -e "Apply [0-9]{4}-$(sed 's/[][\.*^$+?(){}|/]/\\&/g' <<<"$stem")( \(with fuzz\))?" \
         <<<"$REPO_SUBJECTS" >/dev/null
 }
 
@@ -101,106 +110,97 @@ map_patch_dir_to_tree() {
     echo "$tree"
 }
 
-apply_category() {
-    local category_name="$1"
-    local category_dir="$2"
+# Each repo's patches are applied as one ordered series. Patch files carry a
+# per-repo sequence number (NNNN-*.patch) across patches/trebledroid and
+# patches/personal, exported from the tested tree, so the series replays the
+# exact commit order even where TrebleDroid and personal patches interleave.
+apply_tree_series() {
+    local tree="$1"; shift
+    local target_dir="$SOURCE_DIR/$tree"
 
-    local category_rel
-    category_rel="$(basename "$category_dir")"
-
-    echo ""
-    echo "=================================================================="
-    if [ "$CHECK_ONLY" -eq 1 ]; then
-        echo "  CHECKING ${category_name} PATCHES"
-    else
-        echo "  APPLYING ${category_name} PATCHES"
+    if [ ! -d "$target_dir" ]; then
+        echo "[SKIP] Target directory not found: $tree"
+        return
     fi
-    echo "=================================================================="
 
-    for path_entry in $(cd "$category_dir" && echo *); do
-        [ -d "$category_dir/$path_entry" ] || continue
-        local tree
-        tree="$(map_patch_dir_to_tree "$path_entry")"
-        local target_dir="$SOURCE_DIR/$tree"
+    echo "--- [$tree] ---"
+    pushd "$target_dir" >/dev/null
+    REPO_SUBJECTS="$(git log --format=%s -n 2000 2>/dev/null || true)"
 
-        if [ ! -d "$target_dir" ]; then
-            echo "[SKIP] Target directory not found: $tree (from $path_entry)"
+    local patch_file
+    for patch_file in "$@"; do
+        local patch_name patch_rel
+        patch_name="$(basename "$patch_file")"
+        patch_rel="${patch_file#"$SOLUTION_ROOT/patches/"}"
+
+        # 1. Check if already applied (reverse dry-run succeeds)
+        if patch -f -p1 --dry-run -R < "$patch_file" >/dev/null 2>&1; then
+            echo "  [ALREADY APPLIED] $patch_rel"
+            continue
+        fi
+        if applied_by_subject "$patch_file" "$patch_name"; then
+            echo "  [ALREADY APPLIED (by subject)] $patch_rel"
+            continue
+        fi
+        # Listed patches are never attempted: a patch that only applies with
+        # fuzz would otherwise change the tree from the tested state.
+        if is_known_unapplied "$patch_rel"; then
+            echo "  [KNOWN UNAPPLIED] $patch_rel"
+            KNOWN_SKIPPED+=("$patch_rel")
             continue
         fi
 
-        echo "--- [$path_entry -> $tree] ---"
-        pushd "$target_dir" >/dev/null
-        REPO_SUBJECTS="$(git log --format=%s -n 2000 2>/dev/null || true)"
-
-        for patch_file in "$category_dir/$path_entry"/*.patch; do
-            [ -f "$patch_file" ] || continue
-            local patch_name patch_rel
-            patch_name="$(basename "$patch_file")"
-            patch_rel="$category_rel/$path_entry/$patch_name"
-
-            # 1. Check if already applied (reverse dry-run succeeds)
-            if patch -f -p1 --dry-run -R < "$patch_file" >/dev/null 2>&1; then
-                echo "  [ALREADY APPLIED] $patch_name"
-                continue
-            fi
-            if applied_by_subject "$patch_file" "$patch_name"; then
-                echo "  [ALREADY APPLIED (by subject)] $patch_name"
-                continue
-            fi
-            # Listed patches are never attempted: a patch that only applies with
-            # fuzz would otherwise change the tree from the tested state.
-            if is_known_unapplied "$patch_rel"; then
-                echo "  [KNOWN UNAPPLIED] $patch_name"
-                KNOWN_SKIPPED+=("$patch_rel")
-                continue
-            fi
-
-            if [ "$CHECK_ONLY" -eq 1 ]; then
-                if git apply --check "$patch_file" 2>/dev/null ||
-                        patch -f -p1 --no-backup-if-mismatch --dry-run < "$patch_file" >/dev/null 2>&1; then
-                    echo "  [WOULD APPLY] $patch_name"
-                elif is_known_unapplied "$patch_rel"; then
-                    echo "  [KNOWN UNAPPLIED] $patch_name"
-                    KNOWN_SKIPPED+=("$patch_rel")
-                else
-                    echo "  [FAIL] $patch_name does not apply"
-                    FAILED_PATCHES+=("$patch_rel")
-                fi
-                continue
-            fi
-
-            # 2. Try clean git am / git apply
+        if [ "$CHECK_ONLY" -eq 1 ]; then
+            # Later patches in a series can depend on earlier ones, so --check
+            # only reports what applies against the current tree.
             if git apply --check "$patch_file" 2>/dev/null; then
-                if git am --keep-cr "$patch_file" >/dev/null 2>&1; then
-                    echo "  [APPLIED (git am)] $patch_name"
-                else
-                    git am --abort >/dev/null 2>&1 || true
-                    git apply "$patch_file"
-                    git add -u
-                    git commit -m "Apply $patch_name" >/dev/null 2>&1 || true
-                    echo "  [APPLIED (git apply)] $patch_name"
-                fi
-            # 3. Fallback to patch with fuzz (and --no-backup-if-mismatch to prevent .orig files)
-            elif patch -f -p1 --no-backup-if-mismatch --dry-run < "$patch_file" >/dev/null 2>&1; then
-                patch -f -p1 --no-backup-if-mismatch < "$patch_file" >/dev/null
-                git add -u
-                git commit -m "Apply $patch_name (with fuzz)" >/dev/null 2>&1 || true
-                echo "  [APPLIED (patch)] $patch_name"
-            elif is_known_unapplied "$patch_rel"; then
-                echo "  [KNOWN UNAPPLIED] $patch_name"
-                KNOWN_SKIPPED+=("$patch_rel")
+                echo "  [WOULD APPLY] $patch_rel"
             else
-                echo "  [FAIL] Could not apply $patch_name — check $tree manually"
+                echo "  [FAIL] $patch_rel does not apply (may depend on an earlier patch in the series)"
                 FAILED_PATCHES+=("$patch_rel")
             fi
-        done
+            continue
+        fi
 
-        popd >/dev/null
+        # 2. The series is exported from the tested tree, so it must apply cleanly.
+        if git am --keep-cr "$patch_file" >/dev/null 2>&1; then
+            echo "  [APPLIED] $patch_rel"
+        else
+            git am --abort >/dev/null 2>&1 || true
+            echo "  [FAIL] Could not apply $patch_rel cleanly — upstream $tree moved; refresh the series"
+            FAILED_PATCHES+=("$patch_rel")
+            break
+        fi
     done
+
+    popd >/dev/null
 }
 
-apply_category "TREBLEDROID" "$TREBLEDROID_DIR"
-apply_category "PERSONAL" "$PERSONAL_DIR"
+echo ""
+echo "=================================================================="
+if [ "$CHECK_ONLY" -eq 1 ]; then
+    echo "  CHECKING PATCH SERIES"
+else
+    echo "  APPLYING PATCH SERIES"
+fi
+echo "=================================================================="
+
+declare -A TREE_PATCHES=()
+for category_dir in "$TREBLEDROID_DIR" "$PERSONAL_DIR"; do
+    for path_entry in $(cd "$category_dir" && echo *); do
+        [ -d "$category_dir/$path_entry" ] || continue
+        tree="$(map_patch_dir_to_tree "$path_entry")"
+        for patch_file in "$category_dir/$path_entry"/*.patch; do
+            [ -f "$patch_file" ] || continue
+            TREE_PATCHES["$tree"]+="$(basename "$patch_file")"$'\t'"$patch_file"$'\n'
+        done
+    done
+done
+
+for tree in $(printf '%s\n' "${!TREE_PATCHES[@]}" | sort); do
+    mapfile -t series < <(printf '%s' "${TREE_PATCHES[$tree]}" | sort -t$'\t' -k1,1 | cut -f2)
+    apply_tree_series "$tree" "${series[@]}"
+done
 
 if [ "$CHECK_ONLY" -eq 0 ]; then
     echo ""

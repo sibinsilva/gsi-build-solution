@@ -1,0 +1,26 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: "Christopher A. Williamson" <contact@chrisaw.io>
+Date: Fri, 3 Apr 2026 21:50:00 +0200
+Subject: [PATCH] allow-TrebleDroid-permissive-domains-in-user-builds
+
+---
+ Android.bp | 6 +++++-
+ 1 file changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/Android.bp b/Android.bp
+index 5de225a..4b25f24 100644
+--- a/Android.bp
++++ b/Android.bp
+@@ -724,7 +724,11 @@ precompiled_se_policy_binary {
+     required: [
+         "sepolicy_neverallows",
+     ],
+-    permissive_domains_on_user_builds: ["backuptool"],
++    permissive_domains_on_user_builds: [
++        "phhsu_daemon",
++        "tkcore",
++        "ueventd",
++    ],
+ }
+ 
+ // policy for recovery

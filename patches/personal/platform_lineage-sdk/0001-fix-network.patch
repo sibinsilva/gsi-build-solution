@@ -1,4 +1,4 @@
-From d3c95f3dca089842d8e6f3c540b673cff5d6baba Mon Sep 17 00:00:00 2001
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Sibin Silvester <sibinsilva@gmail.com>
 Date: Mon, 27 Jul 2026 14:34:03 +0000
 Subject: [PATCH] fix network
@@ -9,7 +9,7 @@ Change-Id: I06670d6056293489d790f9ab350fce6f3d5cc61d
  1 file changed, 57 insertions(+), 6 deletions(-)
 
 diff --git a/sdk/src/java/org/lineageos/internal/statusbar/NetworkTraffic.java b/sdk/src/java/org/lineageos/internal/statusbar/NetworkTraffic.java
-index 8b91f81f..aaa8da1f 100644
+index 8b91f81..aaa8da1 100644
 --- a/sdk/src/java/org/lineageos/internal/statusbar/NetworkTraffic.java
 +++ b/sdk/src/java/org/lineageos/internal/statusbar/NetworkTraffic.java
 @@ -26,6 +26,7 @@ import android.os.SystemClock;
@@ -103,6 +103,3 @@ index 8b91f81f..aaa8da1f 100644
  
                  final long txBytesDelta = txBytes - mLastTxBytes;
                  final long rxBytesDelta = rxBytes - mLastRxBytes;
--- 
-2.43.0
-

@@ -1,4 +1,4 @@
-From d16bd1eb2ec335b29ebc56b6b0ca2320a9eb123d Mon Sep 17 00:00:00 2001
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Pierre-Hugues Husson <phh@phh.me>
 Date: Wed, 21 Feb 2024 17:26:07 -0500
 Subject: [PATCH] Add persist.sys.phh.wifi_disable_sae property to disable
@@ -10,7 +10,7 @@ Change-Id: I72a0133e986f2c745af3c915ed65d7b540d2119b
  1 file changed, 2 insertions(+)
 
 diff --git a/service/java/com/android/server/wifi/WifiGlobals.java b/service/java/com/android/server/wifi/WifiGlobals.java
-index 1c4e549cf1..193b317541 100644
+index 14984ba..ff3eda5 100644
 --- a/service/java/com/android/server/wifi/WifiGlobals.java
 +++ b/service/java/com/android/server/wifi/WifiGlobals.java
 @@ -348,6 +348,8 @@ public class WifiGlobals {
@@ -22,6 +22,3 @@ index 1c4e549cf1..193b317541 100644
          return mWifiResourceCache
                  .getBoolean(R.bool.config_wifiSaeUpgradeEnabled);
      }
--- 
-2.25.1
-

@@ -9,11 +9,11 @@ This reverts commit 6e5941919349d389970de0012e738698fe07ec88.
  1 file changed, 7 insertions(+)
 
 diff --git a/apex/Android.bp b/apex/Android.bp
-index 8f194df..ca076b8 100644
+index baf8d19..e2185ae 100644
 --- a/apex/Android.bp
 +++ b/apex/Android.bp
-@@ -70,3 +70,10 @@ apex_vndk {
-     vndk_version: "30",
+@@ -63,3 +63,10 @@ apex_vndk {
+     vndk_version: "31",
      system_ext_specific: true,
  }
 +
@@ -23,6 +23,3 @@ index 8f194df..ca076b8 100644
 +    vndk_version: "29",
 +    system_ext_specific: true,
 +}
--- 
-2.25.1
-

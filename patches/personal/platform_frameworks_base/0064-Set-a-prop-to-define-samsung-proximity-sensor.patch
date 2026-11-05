@@ -1,0 +1,45 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: ChonDoit <thphantomblog@gmail.com>
+Date: Thu, 30 May 2024 19:28:02 -0300
+Subject: [PATCH] Set a prop to define samsung proximity sensor
+
+---
+ .../server/display/DisplayPowerProximityStateController.java  | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/services/core/java/com/android/server/display/DisplayPowerProximityStateController.java b/services/core/java/com/android/server/display/DisplayPowerProximityStateController.java
+index d9e5addde..032db9622 100644
+--- a/services/core/java/com/android/server/display/DisplayPowerProximityStateController.java
++++ b/services/core/java/com/android/server/display/DisplayPowerProximityStateController.java
+@@ -27,6 +27,7 @@ import android.os.Handler;
+ import android.os.Looper;
+ import android.os.Message;
+ import android.os.SystemClock;
++import android.os.SystemProperties;
+ import android.util.Slog;
+ import android.util.TimeUtils;
+ import android.view.Display;
+@@ -399,6 +400,7 @@ public final class DisplayPowerProximityStateController {
+             for(Sensor sensor: sensors) {
+                 if("com.samsung.sensor.physical_proximity".equals(sensor.getStringType()))
+                     mProximitySensor = sensor;
++		    SystemProperties.set("persist.sys.phh.proximity", "samsung-physical");
+             }
+         }
+         if(mProximitySensor == null) {
+@@ -406,6 +408,7 @@ public final class DisplayPowerProximityStateController {
+             for(Sensor sensor: sensors) {
+                 if("com.samsung.sensor.hover_proximity".equals(sensor.getStringType()))
+                     mProximitySensor = sensor;
++		    SystemProperties.set("persist.sys.phh.proximity", "samsung-hover");
+             }
+         }
+         if(mProximitySensor == null) {
+@@ -413,6 +416,7 @@ public final class DisplayPowerProximityStateController {
+             for(Sensor sensor: sensors) {
+                 if("com.samsung.sensor.touch_proximity".equals(sensor.getStringType()))
+                     mProximitySensor = sensor;
++		    SystemProperties.set("persist.sys.phh.proximity", "samsung-touch");
+             }
+         }
+         if (mProximitySensor != null) {

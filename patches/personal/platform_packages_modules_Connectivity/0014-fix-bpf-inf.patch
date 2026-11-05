@@ -1,7 +1,7 @@
-From 8d35f8c3752222606ebb49cf83bbe9e87e211271 Mon Sep 17 00:00:00 2001
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Sibin Silvester <sibinsilva@gmail.com>
 Date: Sun, 26 Apr 2026 22:33:28 +0000
-Subject: [PATCH 14/14] fix bpf inf
+Subject: [PATCH] fix bpf inf
 
 ---
  bpf/loader/NetBpfLoad.cpp | 1 -
@@ -19,6 +19,3 @@ index 35dae87..0a3ac76 100644
              failed = true;
          }
      } else {  // implies S/T with 4.9 kernel
--- 
-2.43.0
-

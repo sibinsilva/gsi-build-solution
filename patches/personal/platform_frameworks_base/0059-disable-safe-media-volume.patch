@@ -1,0 +1,30 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Sibin Silvester <sibinsilva@gmail.com>
+Date: Fri, 24 Jul 2026 04:07:34 +0000
+Subject: [PATCH] audio: disable safe media volume via property
+
+This adds a property-controlled bypass for safe media volume checks in
+SoundDoseHelper, allowing builds to disable the restriction without
+removing the code path entirely.
+
+Change-Id: Ifa813d092ed145b2d42a3d0fa7148f9fb81aa0e7
+---
+ .../core/java/com/android/server/audio/SoundDoseHelper.java  | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/services/core/java/com/android/server/audio/SoundDoseHelper.java b/services/core/java/com/android/server/audio/SoundDoseHelper.java
+index 8d7b3c831..6e81e07d0 100644
+--- a/services/core/java/com/android/server/audio/SoundDoseHelper.java
++++ b/services/core/java/com/android/server/audio/SoundDoseHelper.java
+@@ -794,6 +794,11 @@ public class SoundDoseHelper {
+     }
+ 
+     /*package*/ boolean safeDevicesContains(int device) {
++        final boolean phhDisableSafeMediaVolume = SystemProperties.getBoolean(
++                "persist.sys.phh.disable_safe_media_volume", false);
++        if (phhDisableSafeMediaVolume) {
++            return false;
++        }
+         return mSafeMediaVolumeDevices.get(device, SAFE_MEDIA_VOLUME_UNINITIALIZED) >= 0;
+     }
+ 

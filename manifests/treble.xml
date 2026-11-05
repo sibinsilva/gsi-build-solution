@@ -4,10 +4,10 @@
   <remote name="td" fetch="https://github.com/TrebleDroid/" />
   <remote name="sibin" fetch="https://github.com/sibinsilva/" />
 
-  <project path="device/phh/treble" name="device_phh_treble" remote="sibin" revision="android-16.0" />
+  <project path="device/phh/treble" name="device_phh_treble" remote="sibin" revision="infinity-16" />
   <project path="vendor/hardware_overlay" name="vendor_hardware_overlay" remote="sibin" revision="pie" />
   <project path="treble_app" name="treble_app" remote="sibin" revision="master" />
-  <project path="device/asus/I005D" name="device_asus_I005D_GSI" remote="sibin" revision="android-16.0" />
+  <project path="device/asus/I005D" name="device_asus_I005D_GSI" remote="sibin" revision="infinity-16" />
   <!-- Private: proprietary ASUS Camera APK (needs GitHub auth to sync) -->
   <project path="vendor/asus/camera" name="vendor_asus_I005D_camera" remote="sibin" revision="android-16.0" />
 

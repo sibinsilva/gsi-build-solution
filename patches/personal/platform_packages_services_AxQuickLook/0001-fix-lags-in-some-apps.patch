@@ -1,4 +1,4 @@
-From 6f9dc51f617afa8878f11aa24efdaf405eb54cb4 Mon Sep 17 00:00:00 2001
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Sibin Silvester <sibinsilva@gmail.com>
 Date: Wed, 24 Jun 2026 05:31:24 +0000
 Subject: [PATCH] fix lags in some apps
@@ -23,6 +23,3 @@ index bb7ec60..ccbf7ea 100644
  }
  
  prebuilt_etc {
--- 
-2.43.0
-

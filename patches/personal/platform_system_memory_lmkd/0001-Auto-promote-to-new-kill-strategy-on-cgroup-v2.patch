@@ -1,4 +1,4 @@
-From 4e03391b0b0d2d121be9ace22e261229f9445049 Mon Sep 17 00:00:00 2001
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: "Christopher A. Williamson" <contact@chrisaw.io>
 Date: Tue, 24 Mar 2026 11:47:03 +0000
 Subject: [PATCH] Auto-promote to new kill strategy on cgroup v2
@@ -29,6 +29,3 @@ index b2cc335..00c6124 100644
      }
      /* In default PSI mode override stall amounts using system properties */
      if (use_new_strategy) {
--- 
-2.53.0
-

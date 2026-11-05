@@ -1,0 +1,33 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Sibin Silvester <sibinsilva@gmail.com>
+Date: Wed, 24 Jun 2026 21:11:24 +0000
+Subject: [PATCH] fix lockscreen icon
+
+Change-Id: I7d36fbe232ad115222858d091628ddf110fb1941
+---
+ .../com/android/systemui/statusbar/phone/LockIcon.java    | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+diff --git a/packages/SystemUI/src/com/android/systemui/statusbar/phone/LockIcon.java b/packages/SystemUI/src/com/android/systemui/statusbar/phone/LockIcon.java
+index 572b7f12a..40078fb02 100644
+--- a/packages/SystemUI/src/com/android/systemui/statusbar/phone/LockIcon.java
++++ b/packages/SystemUI/src/com/android/systemui/statusbar/phone/LockIcon.java
+@@ -125,10 +125,18 @@ public class LockIcon extends KeyguardAffordanceView {
+                         .scaleY(1)
+                         .withLayer()
+                         .setDuration(233)
++                        .withEndAction(() -> {
++                            setScaleX(1f);
++                            setScaleY(1f);
++                        })
+                         .start();
+             }
+             return true;
+         }
++       if (visible && (getScaleX() != 1f || getScaleY() != 1f)) {
++           setScaleX(1f);
++           setScaleY(1f);
++       }
+         return false;
+     }
+ 

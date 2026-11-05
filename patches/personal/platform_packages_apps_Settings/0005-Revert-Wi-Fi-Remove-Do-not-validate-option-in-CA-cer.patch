@@ -1,0 +1,48 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Jotanh <joaopedromelen2910@gmail.com>
+Date: Thu, 1 May 2025 21:45:15 +0000
+Subject: [PATCH] Revert-Wi-Fi-Remove-Do-not-validate-option-in-CA-cer
+
+---
+ res/layout/wifi_network_config.xml | 12 ++++++++++++
+ res/values/strings.xml             |  4 ++++
+ 2 files changed, 16 insertions(+)
+
+diff --git a/res/layout/wifi_network_config.xml b/res/layout/wifi_network_config.xml
+index 588a270..40b31ed 100644
+--- a/res/layout/wifi_network_config.xml
++++ b/res/layout/wifi_network_config.xml
+@@ -245,6 +245,18 @@
+                         android:text="@string/wifi_do_not_validate_eap_server_warning" />
+             </LinearLayout>
+ 
++            <LinearLayout android:id="@+id/no_ca_cert_warning"
++                    android:layout_width="match_parent"
++                    android:layout_height="wrap_content"
++                    android:visibility="gone"
++                    style="@style/wifi_item" >
++                <TextView
++                        android:layout_width="wrap_content"
++                        android:layout_height="wrap_content"
++                        style="@style/wifi_item_warning"
++                        android:text="@string/wifi_do_not_validate_eap_server_warning" />
++            </LinearLayout>
++
+             <LinearLayout android:id="@+id/l_domain"
+                           android:layout_width="match_parent"
+                           android:layout_height="wrap_content"
+diff --git a/res/values/strings.xml b/res/values/strings.xml
+index 05496b8..07ec943 100644
+--- a/res/values/strings.xml
++++ b/res/values/strings.xml
+@@ -2683,6 +2683,10 @@
+     <string name="wifi_use_system_certs">Use system certificates</string>
+     <!-- Menu option for not providing an EAP user certificate -->
+     <string name="wifi_do_not_provide_eap_user_cert">Do not provide</string>
++    <!-- Menu option for not validating the EAP server -->
++    <string name="wifi_do_not_validate_eap_server">Do not validate</string>
++    <!-- Warning message displayed if user choses not to validate the EAP server -->
++    <string name="wifi_do_not_validate_eap_server_warning">No certificate specified. Your connection will not be private.</string>
+     <!-- Menu option for Trust On First Use[CHAR_LIMIT=64] -->
+     <string name="wifi_trust_on_first_use">Trust on First Use</string>
+     <!-- Warning message displayed if network name (ssid) is too long -->
