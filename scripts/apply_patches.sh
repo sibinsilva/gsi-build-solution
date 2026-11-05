@@ -88,6 +88,8 @@ map_patch_dir_to_tree() {
         vendor/pixel/gms|vendor/gms)
             if [ -d "$SOURCE_DIR/vendor/pixel/gms" ]; then
                 tree="vendor/pixel/gms"
+            elif [ -d "$SOURCE_DIR/vendor/google/gms" ]; then
+                tree="vendor/google/gms"
             else
                 tree="vendor/gms"
             fi

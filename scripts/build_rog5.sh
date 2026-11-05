@@ -6,16 +6,18 @@ set -euo pipefail
 #                 Android 16 (bp4a) stock-vendor system image
 # ==============================================================================
 # Usage:
-#   ./scripts/build_rog5.sh [/path/to/source] [userdebug|user] [/path/to/release]
+#   ./scripts/build_rog5.sh [/path/to/source] [userdebug|user] [/path/to/release] [product]
+#   product defaults to infinity_I005D (lunaris_I005D on a Lunaris tree)
 # ==============================================================================
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SOURCE_DIR="${1:-/data/build}"
 BUILD_VARIANT="${2:-userdebug}"
 RELEASE_DIR="${3:-/data/release}"
+PRODUCT_TARGET="${4:-infinity_I005D}"
 JOBS="${JOBS:-$(nproc)}"
 
-LUNCH_TARGET="lunaris_I005D-bp4a-${BUILD_VARIANT}"
+LUNCH_TARGET="${PRODUCT_TARGET} bp4a ${BUILD_VARIANT}"
 
 echo "=================================================================="
 echo "  ASUS ROG Phone 5/5s (I005D) Stock-Vendor System Image Build"
@@ -41,7 +43,9 @@ export CCACHE_DIR="${CCACHE_DIR:-/data/ccache}"
 
 set +u
 source build/envsetup.sh
-lunch "$LUNCH_TARGET"
+# Three-argument form: Infinity's legacy "<product>-<variant>" parsing runs
+# `grep "-"`, which fails when grep is wrapped by ugrep in the user profile.
+lunch "$PRODUCT_TARGET" bp4a "$BUILD_VARIANT"
 m installclean
 m systemimage -j"$JOBS"
 BUILT_IMG="$(get_build_var PRODUCT_OUT)/system.img"

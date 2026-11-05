@@ -15,12 +15,11 @@ RELEASE_DIR="${3:-/data/release}"
 PRODUCT_TARGET="${4:-}"
 JOBS="${JOBS:-$(nproc)}"
 
-# Auto-detect the GSI product target from device/phh/treble/AndroidProducts.mk if not provided
-if [ -z "$PRODUCT_TARGET" ]; then
-    PRODUCT_TARGET="$(awk -F'/' '/LOCAL_DIR.*\.mk/ {gsub(/\.mk[[:space:]]*\\?$/, "", $NF); print $NF; exit}' "$SOURCE_DIR/device/phh/treble/AndroidProducts.mk" 2>/dev/null || echo "treble_arm64_bgN")"
-fi
+# Default GSI product. Pass the 4th argument to build another product from
+# device/phh/treble/AndroidProducts.mk (e.g. lunaris_gsi on a Lunaris tree).
+PRODUCT_TARGET="${PRODUCT_TARGET:-infinity_gsi}"
 
-LUNCH_TARGET="${PRODUCT_TARGET}-bp4a-${BUILD_VARIANT}"
+LUNCH_TARGET="${PRODUCT_TARGET} bp4a ${BUILD_VARIANT}"
 
 echo "=================================================================="
 echo "  Android 16 (bp4a) Generic System Image (GSI) Automated Build"
@@ -46,7 +45,10 @@ export CCACHE_DIR="${CCACHE_DIR:-/data/ccache}"
 
 set +u
 source build/envsetup.sh
-lunch "$LUNCH_TARGET"
+# Three-argument form: Infinity's legacy "<product>-<variant>" parsing runs
+# `grep "-"`, which fails when grep is wrapped by ugrep in the user profile.
+lunch "$PRODUCT_TARGET" bp4a "$BUILD_VARIANT"
+m installclean
 m systemimage -j"$JOBS"
 set -u
 
