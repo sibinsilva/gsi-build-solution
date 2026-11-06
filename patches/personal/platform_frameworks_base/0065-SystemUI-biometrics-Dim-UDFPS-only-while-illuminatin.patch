@@ -1,0 +1,392 @@
+From eebbdf10194416f5220158f928806dbd09583cd4 Mon Sep 17 00:00:00 2001
+From: Sibin Silvester <sibinsilva@gmail.com>
+Date: Fri, 6 Nov 2026 15:42:49 +0000
+Subject: [PATCH] SystemUI: biometrics: Dim UDFPS only while illuminating
+
+Panels like the ROG Phone 5 switch on global HBM per touch (the composer
+sets the FOD masker on the illumination frame) instead of for the whole
+keyguard session. With framework dimming the dim layer was shown for the
+whole keyguard, leaving a dark lock screen, and on a press HBM came up
+before the dim was computed, flashing the whole panel.
+
+Add config_udfpsDimOnlyWhileIlluminating (default false). When set, the
+dim window is added with the overlay but kept at alpha 0. On finger down
+the dim is applied at its final alpha and onPointerDown/configureDisplay
+wait until that frame has been presented (80 ms fallback). On finger up
+the dim is hidden 100 ms later so it outlasts the HBM-off commit. The dim
+is applied through the view alpha only, so the effective alpha is the LUT
+value.
+
+Also fall back to the int brightness range configs when
+config_screenBrightnessSettingMinimum/MaximumFloat are unset (-2), as
+DisplayPowerController does; otherwise the dim alpha was always 0.
+---
+ .../SystemUI/res/values/lineage_config.xml    |   5 +
+ .../systemui/biometrics/UdfpsController.java  |  46 +++++-
+ .../biometrics/UdfpsControllerOverlay.kt      |  16 ++
+ .../systemui/biometrics/UdfpsHelper.kt        | 146 ++++++++++++++++--
+ 4 files changed, 202 insertions(+), 11 deletions(-)
+
+diff --git a/packages/SystemUI/res/values/lineage_config.xml b/packages/SystemUI/res/values/lineage_config.xml
+index 728bea582..9a9035da9 100644
+--- a/packages/SystemUI/res/values/lineage_config.xml
++++ b/packages/SystemUI/res/values/lineage_config.xml
+@@ -21,6 +21,11 @@
+     <!-- Whether to enable framework dimming for UDFPS -->
+     <bool name="config_udfpsFrameworkDimming">false</bool>
+ 
++    <!-- With framework dimming, show the dim layer only while the sensor is illuminated
++         (finger down) and keep the HBM trigger back until the dim frame is on screen. For
++         panels that switch on global HBM per touch instead of for the whole keyguard. -->
++    <bool name="config_udfpsDimOnlyWhileIlluminating">false</bool>
++
+     <!-- Brightness-to-alpha lookup table (LUT) for UDFPS framework dimming.
+          Each entry is in the format <brightness>,<alpha> where:
+            - brightness = panel backlight level
+diff --git a/packages/SystemUI/src/com/android/systemui/biometrics/UdfpsController.java b/packages/SystemUI/src/com/android/systemui/biometrics/UdfpsController.java
+index 37f5cfbdc..fb9a0e17e 100644
+--- a/packages/SystemUI/src/com/android/systemui/biometrics/UdfpsController.java
++++ b/packages/SystemUI/src/com/android/systemui/biometrics/UdfpsController.java
+@@ -250,6 +250,10 @@ public class UdfpsController implements DozeReceiver, Dumpable, Runnable {
+     private boolean mScreenOn;
+     private Runnable mAodInterruptRunnable;
+     private boolean mOnFingerDown;
++    // Bumped on every finger down/up so a deferred illumination for a lifted finger is dropped.
++    private long mIlluminationToken;
++    // Whether onPointerDown reached the HAL for the current finger.
++    private boolean mPointerDownSent;
+     private boolean mAttemptedToDismissKeyguard;
+     private final Set<Callback> mCallbacks = new HashSet<>();
+     PowerManagerInternal mPowerManagerInternal = LocalServices.getService(PowerManagerInternal.class);
+@@ -1329,6 +1333,37 @@ public class UdfpsController implements DozeReceiver, Dumpable, Runnable {
+             mDeviceEntryFaceAuthInteractor.onUdfpsSensorTouched();
+         }
+         mOnFingerDown = true;
++
++        // With dim-only-while-illuminating framework dimming, the HAL request (which switches
++        // on HBM) and the illumination wait until the dim layer is on screen.
++        final long illuminationToken = ++mIlluminationToken;
++        final Runnable illuminate = () -> {
++            if (illuminationToken != mIlluminationToken || !mOnFingerDown || mOverlay == null
++                    || !mOverlay.matchesRequestId(requestId)) {
++                Log.w(TAG, "Finger lifted before illumination, skipping");
++                return;
++            }
++            illuminateOnFingerDown(requestId, pointerId, x, y, minor, major, orientation, time,
++                    gestureStart, isAod);
++        };
++        if (!mOverlay.showDimBeforeIllumination(illuminate)) {
++            illuminate.run();
++        }
++    }
++
++    private void illuminateOnFingerDown(
++            long requestId,
++            int pointerId,
++            float x,
++            float y,
++            float minor,
++            float major,
++            float orientation,
++            long time,
++            long gestureStart,
++            boolean isAod) {
++        final View view = mOverlay.getTouchOverlay();
++        mPointerDownSent = true;
+         mFingerprintManager.onPointerDown(requestId, mSensorProps.sensorId, pointerId, x, y,
+                 minor, major, orientation, time, gestureStart, isAod);
+ 
+@@ -1407,6 +1442,7 @@ public class UdfpsController implements DozeReceiver, Dumpable, Runnable {
+         destroyHbmSurfaceControl();
+ 
+         mExecution.assertIsMainThread();
++        mIlluminationToken++;
+         mActivePointerId = MotionEvent.INVALID_POINTER_ID;
+         mAcquiredReceived = false;
+ 
+@@ -1418,8 +1454,10 @@ public class UdfpsController implements DozeReceiver, Dumpable, Runnable {
+         }
+ 
+         if (mOnFingerDown) {
+-            mFingerprintManager.onPointerUp(requestId, mSensorProps.sensorId, pointerId, x,
+-                    y, minor, major, orientation, time, gestureStart, isAod);
++            if (mPointerDownSent) {
++                mFingerprintManager.onPointerUp(requestId, mSensorProps.sensorId, pointerId, x,
++                        y, minor, major, orientation, time, gestureStart, isAod);
++            }
+             if (isOptical()) {
+                 for (Callback cb : mCallbacks) {
+                     cb.onFingerUp();
+@@ -1428,6 +1466,7 @@ public class UdfpsController implements DozeReceiver, Dumpable, Runnable {
+             hideUdfpsAnimation();
+         }
+         mOnFingerDown = false;
++        mPointerDownSent = false;
+ 
+         if (mUseMtkGhbmDimming && mOverlay != null) {
+             View hbmView = mOverlay.getHbmView();
+@@ -1437,6 +1476,9 @@ public class UdfpsController implements DozeReceiver, Dumpable, Runnable {
+         }
+ 
+         unconfigureDisplay(view);
++        if (mOverlay != null) {
++            mOverlay.hideDimAfterIllumination();
++        }
+         cancelAodSendFingerUpAction();
+         if (mPowerManagerInternal != null) {
+             mPowerManagerInternal.setPowerMode(PowerManagerInternal.MODE_LAUNCH, false);
+diff --git a/packages/SystemUI/src/com/android/systemui/biometrics/UdfpsControllerOverlay.kt b/packages/SystemUI/src/com/android/systemui/biometrics/UdfpsControllerOverlay.kt
+index ffdb27411..9d287436c 100644
+--- a/packages/SystemUI/src/com/android/systemui/biometrics/UdfpsControllerOverlay.kt
++++ b/packages/SystemUI/src/com/android/systemui/biometrics/UdfpsControllerOverlay.kt
+@@ -468,6 +468,22 @@ constructor(
+         }
+     }
+ 
++    /**
++     * If framework dimming is in dim-only-while-illuminating mode, show the dim layer and run
++     * [onReady] once it is on screen, then return true. Otherwise return false without running
++     * [onReady]; the caller should illuminate right away.
++     */
++    fun showDimBeforeIllumination(onReady: Runnable): Boolean {
++        val helper = udfpsHelper?.takeIf { it.dimOnlyWhileIlluminating } ?: return false
++        helper.showForIllumination(onReady)
++        return true
++    }
++
++    /** Counterpart of [showDimBeforeIllumination], called when the finger lifts. */
++    fun hideDimAfterIllumination() {
++        udfpsHelper?.takeIf { it.dimOnlyWhileIlluminating }?.hideAfterIllumination()
++    }
++
+     /** Hide the overlay or return false and do nothing if it is already hidden. */
+     fun hide(): Boolean {
+         val wasShowing = isShowing
+diff --git a/packages/SystemUI/src/com/android/systemui/biometrics/UdfpsHelper.kt b/packages/SystemUI/src/com/android/systemui/biometrics/UdfpsHelper.kt
+index 1b20ba432..706537f05 100644
+--- a/packages/SystemUI/src/com/android/systemui/biometrics/UdfpsHelper.kt
++++ b/packages/SystemUI/src/com/android/systemui/biometrics/UdfpsHelper.kt
+@@ -24,13 +24,16 @@ import android.graphics.PixelFormat
+ import android.hardware.biometrics.BiometricRequestConstants.REASON_AUTH_KEYGUARD
+ import android.hardware.biometrics.BiometricRequestConstants.RequestReason
+ import android.hardware.display.DisplayManager
++import android.os.PowerManager
+ import android.util.Log
+ import android.view.Display
++import android.view.SurfaceControl
+ import android.view.View
+ import android.view.WindowManager
+ import androidx.core.view.isVisible
+ import androidx.lifecycle.Lifecycle
+ import androidx.lifecycle.repeatOnLifecycle
++import com.android.internal.display.BrightnessSynchronizer
+ import com.android.systemui.lifecycle.repeatWhenAttached
+ import com.android.systemui.settings.brightness.domain.interactor.BrightnessMirrorShowingInteractor
+ import com.android.systemui.shade.domain.interactor.ShadeInteractor
+@@ -40,6 +43,13 @@ import kotlinx.coroutines.launch
+ 
+ private const val TAG = "UdfpsHelper"
+ 
++// Upper bound for waiting until the dim frame is on screen before illuminating, so a missing
++// frame (e.g. display still waking up) never blocks authentication.
++private const val DIM_PRESENT_TIMEOUT_MS = 80L
++
++// Keep the dim layer briefly after the finger lifts so it outlives the HBM-off commit.
++private const val DIM_HIDE_DELAY_MS = 100L
++
+ /**
+  * Facilitates implementations that use GHBM where dim layer
+  * and pressed icon aren't controlled by kernel
+@@ -61,10 +71,28 @@ class UdfpsHelper(
+ 
+     private val currentBrightness: Float get() =
+         displayManager.getBrightness(Display.DEFAULT_DISPLAY)
+-    private val minBrightness: Float = context.resources
+-        .getFloat(com.android.internal.R.dimen.config_screenBrightnessSettingMinimumFloat)
+-    private val maxBrightness: Float = context.resources
+-        .getFloat(com.android.internal.R.dimen.config_screenBrightnessSettingMaximumFloat)
++    // The float configs default to -2 ("unset"); the framework then derives the range from the
++    // int configs (see DisplayPowerController), so do the same here.
++    private val minBrightness: Float = brightnessConfig(
++        com.android.internal.R.dimen.config_screenBrightnessSettingMinimumFloat,
++        com.android.internal.R.integer.config_screenBrightnessSettingMinimum,
++        PowerManager.BRIGHTNESS_MIN
++    )
++    private val maxBrightness: Float = brightnessConfig(
++        com.android.internal.R.dimen.config_screenBrightnessSettingMaximumFloat,
++        com.android.internal.R.integer.config_screenBrightnessSettingMaximum,
++        PowerManager.BRIGHTNESS_MAX
++    ).coerceAtLeast(minBrightness)
++
++    /**
++     * Show the dim layer only while the sensor is illuminated (finger down), for panels that
++     * switch on global HBM per touch instead of for the whole keyguard session.
++     */
++    val dimOnlyWhileIlluminating: Boolean = context.resources
++        .getBoolean(com.android.systemui.res.R.bool.config_udfpsDimOnlyWhileIlluminating)
++    private var illuminating = false
++    private var illuminationGeneration = 0L
++    private val hideRunnable = Runnable { applyHidden() }
+     private val brightnessAlphaMap: Map<Int, Int> = context.resources
+         .getStringArray(com.android.systemui.res.R.array.config_udfpsDimmingBrightnessAlphaArray)
+         .associate {
+@@ -84,6 +112,9 @@ class UdfpsHelper(
+         layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
+         flags = Utils.FINGERPRINT_OVERLAY_LAYOUT_PARAM_FLAGS or
+                 WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
++        // In dim-only-while-illuminating mode the dim is applied through the view alpha alone
++        // so a single client frame shows it; the window itself stays fully opaque.
++        alpha = 1f
+         privateFlags = WindowManager.LayoutParams.PRIVATE_FLAG_TRUSTED_OVERLAY or
+                 WindowManager.LayoutParams.PRIVATE_FLAG_IS_ROUNDED_CORNERS_OVERLAY
+         // Avoid announcing window title
+@@ -109,6 +140,10 @@ class UdfpsHelper(
+ 
+         override fun onDisplayChanged(displayId: Int) {
+             if (displayId == Display.DEFAULT_DISPLAY && view.isAttachedToWindow) {
++                if (dimOnlyWhileIlluminating) {
++                    if (illuminating) view.alpha = computeTargetAlpha()
++                    return
++                }
+                 brightnessToAlpha()
+                 windowManager.updateViewLayout(view, dimLayoutParams)
+             }
+@@ -148,7 +183,7 @@ class UdfpsHelper(
+     // than what is set on config_screenBrightnessSettingMinimumFloat.
+     // While it's possible to operate with floats, the dimming array was made by referencing
+     // brightness_alpha_lut array from the kernel. This provides a comparable array.
+-    private fun brightnessToAlpha() {
++    private fun computeTargetAlpha(): Float {
+         val adjustedBrightness =
+             (currentBrightness.coerceIn(minBrightness, maxBrightness) * maxPanelBrightness).toInt()
+ 
+@@ -156,6 +191,17 @@ class UdfpsHelper(
+             ?: interpolateAlpha(adjustedBrightness)
+ 
+         Log.i(TAG, "Adjusted Brightness: $adjustedBrightness, Alpha: $targetAlpha")
++        return targetAlpha
++    }
++
++    private fun brightnessToAlpha() {
++        if (dimOnlyWhileIlluminating) {
++            // Never dim outside illumination; showForIllumination() sets the real alpha.
++            view.alpha = if (illuminating) computeTargetAlpha() else 0f
++            dimLayoutParams.alpha = 1f
++            return
++        }
++        val targetAlpha = computeTargetAlpha()
+ 
+         alphaAnimator.setFloatValues(view.alpha, targetAlpha)
+         // Set the dim for both the view and the layout
+@@ -174,22 +220,104 @@ class UdfpsHelper(
+     }
+ 
+     fun removeDimLayer() {
++        illuminationGeneration++
++        illuminating = false
++        view.removeCallbacks(hideRunnable)
+         windowManager.removeView(view)
+         displayManager.unregisterDisplayListener(displayListener)
+     }
+ 
++    /**
++     * Dim-only-while-illuminating mode: show the dim layer at its final alpha and run [onShown]
++     * once that frame has been presented (or after [DIM_PRESENT_TIMEOUT_MS]), so the caller can
++     * trigger HBM with the dim already on screen. [onShown] runs at most once, on the main
++     * thread, and is dropped if [hideAfterIllumination] or [removeDimLayer] is called first.
++     */
++    fun showForIllumination(onShown: Runnable) {
++        view.removeCallbacks(hideRunnable)
++        val generation = ++illuminationGeneration
++        var done = false
++        val finish = Runnable {
++            if (!done) {
++                done = true
++                if (generation == illuminationGeneration) onShown.run()
++            }
++        }
++
++        val viewRoot = view.viewRootImpl
++        val alreadyShown = illuminating
++        illuminating = true
++        if (alreadyShown || viewRoot == null || !view.isAttachedToWindow) {
++            if (viewRoot == null) Log.w(TAG, "Dim layer not attached, illuminating without it")
++            view.alpha = computeTargetAlpha()
++            finish.run()
++            return
++        }
++
++        val t = SurfaceControl.Transaction()
++        t.addTransactionCompletedListener(context.mainExecutor) { stats ->
++            stats.close()
++            finish.run()
++        }
++        view.isVisible = true
++        view.alpha = computeTargetAlpha()
++        view.invalidate()
++        if (!viewRoot.applyTransactionOnDraw(t)) {
++            finish.run()
++            return
++        }
++        view.postDelayed({
++            if (!done) Log.w(TAG, "Dim frame not presented in time, illuminating anyway")
++            finish.run()
++        }, DIM_PRESENT_TIMEOUT_MS)
++    }
++
++    /** Dim-only-while-illuminating mode: hide the dim layer shortly after the finger lifts. */
++    fun hideAfterIllumination() {
++        illuminationGeneration++
++        if (!illuminating) return
++        view.removeCallbacks(hideRunnable)
++        view.postDelayed(hideRunnable, DIM_HIDE_DELAY_MS)
++    }
++
++    private fun applyHidden() {
++        illuminating = false
++        view.alpha = 0f
++    }
++
++    private fun brightnessConfig(floatRes: Int, intRes: Int, fallback: Float): Float {
++        val res = context.resources
++        val value = res.getFloat(floatRes)
++        if (!value.isNaN() && value >= PowerManager.BRIGHTNESS_MIN &&
++                value <= PowerManager.BRIGHTNESS_MAX) {
++            return value
++        }
++        val intValue = res.getInteger(intRes)
++        if (intValue in 1..PowerManager.BRIGHTNESS_ON) {
++            return BrightnessSynchronizer.brightnessIntToFloat(intValue)
++        }
++        return fallback
++    }
++
+     init {
+         view.repeatWhenAttached {
+             repeatOnLifecycle(Lifecycle.State.CREATED) {
+-                listenForBrightnessMirror(this)
++                // In dim-only-while-illuminating mode the layer is driven by finger down/up only.
++                if (!dimOnlyWhileIlluminating) {
++                    listenForBrightnessMirror(this)
+ 
+-                if (isKeyguard) {
+-                    listenForShadeTouchability(this)
++                    if (isKeyguard) {
++                        listenForShadeTouchability(this)
++                    }
+                 }
+             }
+         }
+ 
+-        if (!isKeyguard) {
++        if (dimOnlyWhileIlluminating) {
++            // Keep the window shown but transparent so showing it later takes a single frame.
++            view.alpha = 0f
++            view.isVisible = true
++        } else if (!isKeyguard) {
+             view.isVisible = true
+         }
+     }
+-- 
+2.53.0
+
