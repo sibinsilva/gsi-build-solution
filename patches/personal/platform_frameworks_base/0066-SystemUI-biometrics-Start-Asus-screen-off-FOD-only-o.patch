@@ -1,0 +1,128 @@
+From 123144ea52c8b7ee8d6f65a5bf140e4312fe88c4 Mon Sep 17 00:00:00 2001
+From: Sibin Silvester <sibinsilva@gmail.com>
+Date: Fri, 6 Nov 2026 16:41:20 +0000
+Subject: [PATCH] SystemUI: biometrics: Start Asus screen-off FOD only on a
+ biometric wake
+
+The screen-off FOD unlock treated every WAKE_REASON_WAKE_KEY wake as a
+finger on the sensor, so a KEY_WAKEUP wake faked a press (HBM flash and a
+failed attempt).
+
+Map the touch driver's FOD key to KEYCODE_MACRO_1 in the device keylayout
+and, with persist.sys.phh.fod.asus, have WindowWakeUpPolicy report that
+wake as WAKE_REASON_BIOMETRIC ("android.policy:FOD"). UdfpsController now
+starts the AOD interrupt only for a biometric wake, and not for the
+wake-and-unlock that follows a successful scan. PhoneWindowManager already
+consumes MACRO keys, so the key never reaches apps.
+---
+ .../systemui/biometrics/UdfpsController.java  | 14 ++++++---
+ .../server/policy/WindowWakeUpPolicy.java     | 31 ++++++++++++++++---
+ 2 files changed, 37 insertions(+), 8 deletions(-)
+
+diff --git a/packages/SystemUI/src/com/android/systemui/biometrics/UdfpsController.java b/packages/SystemUI/src/com/android/systemui/biometrics/UdfpsController.java
+index fb9a0e17e..4c933dfeb 100644
+--- a/packages/SystemUI/src/com/android/systemui/biometrics/UdfpsController.java
++++ b/packages/SystemUI/src/com/android/systemui/biometrics/UdfpsController.java
+@@ -306,9 +306,11 @@ public class UdfpsController implements DozeReceiver, Dumpable, Runnable {
+ 
+     // ASUS (ROG Phone 5) screen-off FOD unlock. With touch_control_fod set, the
+     // touch driver reports a finger on the sensor while the screen is off as
+-    // KEY_F (mapped to WAKEUP) instead of a touch, and keeps that finger
+-    // filtered until it lifts, so start the scan through the AOD interrupt
+-    // path, like a long-press sensor would.
++    // KEY_F instead of a touch, and keeps that finger filtered until it lifts,
++    // so start the scan through the AOD interrupt path, like a long-press
++    // sensor would. KEY_F is mapped to MACRO_1, which WindowWakeUpPolicy turns
++    // into a WAKE_REASON_BIOMETRIC wake, so other wake keys (double tap, KEY_WAKEUP)
++    // don't fake a finger press.
+     private static final String ASUS_FOD_CTRL_PROPERTY = "sys.phh.oplus.fppress.fodctrl";
+     private static final long ASUS_FOD_CTRL_RELEASE_DELAY_MILLIS =
+             AOD_SEND_FINGER_UP_DELAY_MILLIS + 500;
+@@ -339,8 +341,12 @@ public class UdfpsController implements DozeReceiver, Dumpable, Runnable {
+                     if (!mAsusFod || !mAsusFodArmed) {
+                         return;
+                     }
++                    // Wake-and-unlock after a successful scan also wakes with
++                    // WAKE_REASON_BIOMETRIC; that one must not start another scan.
+                     final boolean fodWake = mWakefulnessLifecycle.getLastWakeReason()
+-                            == PowerManager.WAKE_REASON_WAKE_KEY;
++                            == PowerManager.WAKE_REASON_BIOMETRIC
++                            && !mKeyguardUpdateMonitor.getUserUnlockedWithBiometric(
++                                    mSelectedUserInteractor.getSelectedUserId());
+                     final Rect sensor = mOverlayParams.getSensorBounds();
+                     if (!fodWake || !mKeyguardStateController.isShowing()
+                             || sensor.isEmpty()) {
+diff --git a/services/core/java/com/android/server/policy/WindowWakeUpPolicy.java b/services/core/java/com/android/server/policy/WindowWakeUpPolicy.java
+index 340753fbb..e9800bfc4 100644
+--- a/services/core/java/com/android/server/policy/WindowWakeUpPolicy.java
++++ b/services/core/java/com/android/server/policy/WindowWakeUpPolicy.java
+@@ -16,12 +16,14 @@
+ 
+ package com.android.server.policy;
+ 
++import static android.os.PowerManager.WAKE_REASON_BIOMETRIC;
+ import static android.os.PowerManager.WAKE_REASON_CAMERA_LAUNCH;
+ import static android.os.PowerManager.WAKE_REASON_GESTURE;
+ import static android.os.PowerManager.WAKE_REASON_LID;
+ import static android.os.PowerManager.WAKE_REASON_POWER_BUTTON;
+ import static android.os.PowerManager.WAKE_REASON_WAKE_KEY;
+ import static android.os.PowerManager.WAKE_REASON_WAKE_MOTION;
++import static android.view.KeyEvent.KEYCODE_MACRO_1;
+ import static android.view.KeyEvent.KEYCODE_POWER;
+ 
+ import static com.android.server.policy.Flags.supportInputWakeupDelegate;
+@@ -33,6 +35,7 @@ import android.content.Context;
+ import android.os.PowerManager;
+ import android.os.PowerManager.WakeReason;
+ import android.os.SystemClock;
++import android.os.SystemProperties;
+ import android.provider.Settings;
+ import android.util.Slog;
+ import android.view.Display;
+@@ -114,19 +117,39 @@ class WindowWakeUpPolicy {
+             wakeUp(
+                     displayId,
+                     eventTime,
+-                    keyCode == KEYCODE_POWER ? WAKE_REASON_POWER_BUTTON : WAKE_REASON_WAKE_KEY,
+-                    keyCode == KEYCODE_POWER ? "POWER" : "KEY",
++                    getKeyWakeReason(keyCode),
++                    getKeyWakeDetails(keyCode),
+                     withProximityCheck);
+         } else {
+             wakeUp(
+                     eventTime,
+-                    keyCode == KEYCODE_POWER ? WAKE_REASON_POWER_BUTTON : WAKE_REASON_WAKE_KEY,
+-                    keyCode == KEYCODE_POWER ? "POWER" : "KEY",
++                    getKeyWakeReason(keyCode),
++                    getKeyWakeDetails(keyCode),
+                     withProximityCheck);
+         }
+         return true;
+     }
+ 
++    // ASUS (ROG Phone 5) screen-off FOD: the touch driver's finger-on-sensor key is mapped to
++    // MACRO_1 so its wake can be told apart from other wake keys (e.g. double tap); SystemUI
++    // starts the UDFPS scan only for this biometric wake.
++    private static boolean isAsusFodKey(int keyCode) {
++        return keyCode == KEYCODE_MACRO_1
++                && SystemProperties.getBoolean("persist.sys.phh.fod.asus", false);
++    }
++
++    private static @WakeReason int getKeyWakeReason(int keyCode) {
++        if (keyCode == KEYCODE_POWER) return WAKE_REASON_POWER_BUTTON;
++        if (isAsusFodKey(keyCode)) return WAKE_REASON_BIOMETRIC;
++        return WAKE_REASON_WAKE_KEY;
++    }
++
++    private static String getKeyWakeDetails(int keyCode) {
++        if (keyCode == KEYCODE_POWER) return "POWER";
++        if (isAsusFodKey(keyCode)) return "FOD";
++        return "KEY";
++    }
++
+     /**
+      * Wakes up from a motion event.
+      *
+-- 
+2.53.0
+
